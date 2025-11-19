@@ -18,15 +18,10 @@ abstract class Filter {
 
   /// Serializes this [Filter] full-stack Dart endpoints.
   Json toJson();
-}
 
-/// Form of [Filter] meant to be shared with a Rest backend; the expectation
-/// being that this filter must be able to fully represent itself in querystring
-/// format.
-mixin RestFilter on Filter {
   /// Query parameters form of this filter to be included in an [ApiRequest] and
   /// applied by the server.
-  Map<String, String> toParams();
+  Params toParams();
 }
 
 /// Flavors of combination logic for multiple filters.
@@ -63,4 +58,7 @@ class ComboFilter extends Filter with EquatableMixin {
     'ComboFilter.toJson() must be implemented within subclasses if a '
     'ComboFilter is to be used in a remote Source.',
   );
+
+  @override
+  Params toParams() => toJson().cast<String, String>();
 }

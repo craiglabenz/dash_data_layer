@@ -9,8 +9,8 @@ import 'package:logging/logging.dart';
 class ApiSource<T> extends Source<T> {
   /// {@macro ApiSource}
   ApiSource({
-    required super.bindings,
     required RestApi restApi,
+    super.bindings,
     ITimer? timer,
   }) : api = restApi,
        idsCurrentlyBeingFetched = <String>{},
@@ -57,18 +57,14 @@ class ApiSource<T> extends Source<T> {
   Future<ReadListResult<T>> getItems(RequestDetails details) async {
     final Params params = <String, String>{};
 
-    // // Add all specified filters as query parameters
-    // for (final filter in details.filters) {
-    //   params.addAll(filter.toParams());
-    // }
+    // Add all specified filters as query parameters
     if (details.filter != null) {
-      if (details.filter is RestFilter) {
-        params.addAll((details.filter! as RestFilter).toParams());
-      } else {
-        throw Exception(
-          'Invalid non-RestFilter ${details.filter} in ApiSource',
-        );
-      }
+      params.addAll(details.filter!.toParams());
+    }
+
+    // Add all specified pagination as query parameters
+    if (details.pagination != null) {
+      params.addAll(details.pagination!.toParams());
     }
 
     final result = await fetchItems(params);
@@ -94,9 +90,7 @@ class ApiSource<T> extends Source<T> {
     if (ids.isEmpty) {
       return ReadListResult<T>.fromList([], details, {}, bindings.getId);
     }
-    final Params params = <String, String>{
-      'id__in': ids.join(','),
-    };
+    final Params params = serializeIdsForQueryString(ids);
 
     final result = await fetchItems(params);
 
@@ -123,6 +117,15 @@ class ApiSource<T> extends Source<T> {
           return ReadListResult.fromApiError(result);
         }
     }
+  }
+
+  /// Converts a set of Ids into a query parameter. This is a common query
+  /// parameter format for this type of filter, but it can be overridden if
+  /// needed for a given API.
+  Params serializeIdsForQueryString(Set<String> ids) {
+    return <String, String>{
+      'id__in': ids.join(','),
+    };
   }
 
   /// Prepares an Id to be loaded in the next batch.

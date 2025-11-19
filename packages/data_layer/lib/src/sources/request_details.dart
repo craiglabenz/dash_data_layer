@@ -199,4 +199,7 @@ class Pagination extends Equatable {
     'page': page,
     'pageSize': pageSize,
   };
+
+  /// Serializes this pagination for use in a request.
+  Params toParams() => toJson().cast<String, String>();
 }

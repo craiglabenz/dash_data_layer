@@ -47,7 +47,7 @@ class TestModel {
   );
 }
 
-class MsgStartsWithFilter with EquatableMixin implements RestFilter, Filter {
+class MsgStartsWithFilter extends Filter with EquatableMixin {
   const MsgStartsWithFilter(this.value);
   final String value;
 
@@ -58,10 +58,10 @@ class MsgStartsWithFilter with EquatableMixin implements RestFilter, Filter {
   Json toJson() => {'value': value};
 
   @override
-  List<Object?> get props => [value];
+  Params toParams() => toJson().cast<String, String>();
 
   @override
-  Map<String, String> toParams() => toJson().cast<String, String>();
+  List<Object?> get props => [value];
 }
 
 class FakeSourceList<T> extends SourceList<T> {
@@ -110,7 +110,7 @@ class FakeSourceList<T> extends SourceList<T> {
 ///
 /// Not the most performant class, as this re-serializes the model. Best used
 /// only for tests.
-class FieldEquals<T, Value> extends Filter with RestFilter, EquatableMixin {
+class FieldEquals<T, Value> extends Filter with EquatableMixin {
   const FieldEquals(this.fieldName, this.value, this.getValue);
   final String fieldName;
   final Value? value;
@@ -120,13 +120,13 @@ class FieldEquals<T, Value> extends Filter with RestFilter, EquatableMixin {
   List<Object?> get props => [fieldName, value, T.runtimeType];
 
   @override
-  Map<String, String> toParams() => <String, String>{
+  Json toJson() => <String, String>{
     fieldName: value.toString(),
   };
 
   @override
-  CacheKey get cacheKey => '$fieldName-equals-$value';
+  Params toParams() => toJson().cast<String, String>();
 
   @override
-  Json toJson() => toParams();
+  CacheKey get cacheKey => '$fieldName-equals-$value';
 }
