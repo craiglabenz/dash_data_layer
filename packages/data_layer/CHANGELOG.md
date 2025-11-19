@@ -1,3 +1,3 @@
-## 0.0.1-beta
+## 0.0.1-beta.2
 
-- Initial (incomplete) version.
+- Initial beta version.

@@ -66,7 +66,7 @@ Add the following to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  data_layer: ^0.0.1
+  data_layer: ^0.0.1-beta.2
 ```
 
 ## Creating a Repository
