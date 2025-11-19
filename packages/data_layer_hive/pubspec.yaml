@@ -1,0 +1,15 @@
+name: data_layer_hive
+description: Hive implementation of DataLayer.
+version: 0.0.1
+repository: https://github.com/craiglabenz/dash_data_layer_hive
+
+environment:
+  sdk: ^3.10.0
+
+# Add regular dependencies here.
+dependencies:
+  logging: ^1.3.0
+
+dev_dependencies:
+  test: ^1.25.6
+  very_good_analysis: ^10.0.0

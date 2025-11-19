@@ -14,12 +14,13 @@ is one of the 3 hard problems in computer science, *there be dragons*.
 
 # Architecture
 
-Everything in `pkg:data_layer` resolves around satisfying the `DataContract` interface. This interface has 5 primary methods:
+Everything in `pkg:data_layer` resolves around satisfying the `DataContract` interface. This interface has 6 primary methods:
 
 * `getById` - Retrieves a single item by its Id. Does not support filters or pagination.
 * `getByIds` - Retrieves a list of items by their Ids. Does not support filters or pagination.
 * `getItems` - Retrieves a list of items, optionally filtered or paginated.
 * `setItem` - Persists a single item.
+* `setItems` - Persists a list of items.
 * `deleteItem` - Deletes a single item.
 
 The primary class the rest of your app will encounter is the `Repository`, which typically defines handlers for all
