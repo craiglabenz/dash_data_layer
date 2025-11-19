@@ -3,10 +3,7 @@ import 'package:data_layer/data_layer.dart';
 /// {@template ApiRequest}
 /// Container for information needed to submit a network request.
 ///
-/// Supply [headers] to set default headers for this request. Supply
-/// [headersBuilder] to build headers dynamically for this request. Note that
-/// [headersBuilder] will inherit and override [headers], and so should return
-/// the full map of headers and not only additions.
+/// Supply [headers] to set default headers for this request.
 /// {@endtemplate}
 abstract class ApiRequest {
   /// {@macro ApiRequest}

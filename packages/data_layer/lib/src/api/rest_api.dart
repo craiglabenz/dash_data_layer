@@ -15,6 +15,10 @@ typedef HeadersBuilder = Headers Function();
 /// {@template restApi}
 /// Handler for RESTful external communications. Applications will need a unique
 /// [RestApi] instane for every different API with which they communicate.
+///
+/// Supply a [headersBuilder] to build headers dynamically for this request.
+/// Note that the value returned by [headersBuilder] will have the individual
+/// [ApiRequest]'s headers merged in.
 /// {@endtemplate}
 class RestApi {
   /// {@macro restApi}

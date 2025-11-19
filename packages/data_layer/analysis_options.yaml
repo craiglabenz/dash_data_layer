@@ -12,3 +12,6 @@ analyzer:
   exclude:
     - "**.freezed.dart"
     - "**.g.dart"
+
+formatter:
+  trailing_commas: preserve

@@ -4,7 +4,6 @@ import 'package:test/test.dart';
 
 final Uri stubUri = const StubUrl().uri;
 final getRequest = http.Request('GET', stubUri);
-const ms1 = Duration(milliseconds: 1);
 
 http.Response getResp({
   String body = '',
