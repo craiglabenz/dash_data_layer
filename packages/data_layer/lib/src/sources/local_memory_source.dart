@@ -13,17 +13,17 @@ class LocalMemorySource<T> extends LocalSource<T> {
         'parameter for this constructor.',
       ),
       super(
-        InMemorySourcePersistence(bindings?.getId ?? getId!),
+        InMemoryItemsPersistence(bindings?.getId ?? getId!),
         InMemoryCachePersistence(),
       );
 }
 
-/// {@template InMemorySourcePersistence}
+/// {@template InMemoryItemsPersistence}
 /// In-memory storage for a [LocalSource]. This is a glorified [Map].
 /// {@endtemplate}
-class InMemorySourcePersistence<T> extends LocalSourcePersistence<T> {
-  /// {@macro InMemorySourcePersistence}
-  InMemorySourcePersistence(this.getId);
+class InMemoryItemsPersistence<T> extends LocalSourceItemsPersistence<T> {
+  /// {@macro InMemoryItemsPersistence}
+  InMemoryItemsPersistence(this.getId);
 
   /// Extracts the primary key from this object if it has been saved to the.
   /// database. Returns null if the object is unsaved.
@@ -32,36 +32,39 @@ class InMemorySourcePersistence<T> extends LocalSourcePersistence<T> {
   final _items = <String, T>{};
 
   @override
-  void clear() => _items.clear();
+  Future<void> clear() async => _items.clear();
 
   @override
-  T? getById(String id) => _items[id];
+  Future<T?> getById(String id) async => _items[id];
 
   @override
-  Iterable<T> getByIds(Set<String> ids) =>
-      ids.map<T?>(getById).where((T? obj) => obj != null).cast<T>();
+  Future<Iterable<T>> getByIds(Set<String> ids) async =>
+      ids.map<T?>((id) => _items[id]).where((T? obj) => obj != null).cast<T>();
 
   @override
-  void setItem(T item, {required bool shouldOverwrite}) =>
+  Future<void> setItem(T item, {required bool shouldOverwrite}) async =>
       shouldOverwrite || !_items.containsKey(getId(item))
       ? _items[getId(item)!] = item
       : null;
 
   @override
-  void setItems(Iterable<T> items, {required bool shouldOverwrite}) =>
+  Future<void> setItems(
+    Iterable<T> items, {
+    required bool shouldOverwrite,
+  }) async =>
       // ignore: avoid_function_literals_in_foreach_calls
       items.forEach(
         (item) => setItem(item, shouldOverwrite: shouldOverwrite),
       );
 
   @override
-  void deleteIds(Set<String> ids) => ids.forEach(_items.remove);
+  Future<void> deleteIds(Set<String> ids) async => ids.forEach(_items.remove);
 }
 
 /// In memory storage for caching metadata of a [LocalSource] object. Naturally,
 /// this caching strategy does not persist any information across unique
 /// launches of the application.
-class InMemoryCachePersistence extends CachePersistence {
+class InMemoryCachePersistence extends RequestCachePersistence {
   /// Map of request hashes to the Ids they returned. This cache is only used
   /// for requests *without* any pagination.
   final Map<CacheKey, Set<String>> _requestCache = {};
@@ -76,39 +79,41 @@ class InMemoryCachePersistence extends CachePersistence {
   final Map<CacheKey, Map<CacheKey, Set<String>>> _paginatedCache = {};
 
   @override
-  void clear() {
+  Future<void> clear() async {
     _requestCache.clear();
     _paginatedCache.clear();
   }
 
   @override
-  void clearCacheKey(CacheKey key) => _requestCache.remove(key);
+  Future<void> clearCacheKey(CacheKey key) async => _requestCache.remove(key);
 
   @override
-  void clearPaginatedCacheKey({required CacheKey noPaginationCacheKey}) =>
-      _paginatedCache.remove(noPaginationCacheKey);
+  Future<void> clearPaginatedCacheKey({
+    required CacheKey noPaginationCacheKey,
+  }) async => _paginatedCache.remove(noPaginationCacheKey);
 
   @override
-  Set<String>? getCacheKey(CacheKey key) => _requestCache[key];
+  Future<Set<String>?> getCacheKey(CacheKey key) async => _requestCache[key];
 
   @override
-  Set<String>? getPaginatedCacheKey({
+  Future<Set<String>?> getPaginatedCacheKey({
     required CacheKey noPaginationCacheKey,
     required CacheKey cacheKey,
-  }) {
+  }) async {
     return (_paginatedCache[noPaginationCacheKey] ??
         <CacheKey, Set<String>>{})[cacheKey];
   }
 
   @override
-  void setCacheKey(CacheKey key, Set<String> ids) => _requestCache[key] = ids;
+  Future<void> setCacheKey(CacheKey key, Set<String> ids) async =>
+      _requestCache[key] = ids;
 
   @override
-  void setPaginatedCacheKey({
+  Future<void> setPaginatedCacheKey({
     required CacheKey noPaginationCacheKey,
     required CacheKey cacheKey,
     required Set<String> ids,
-  }) {
+  }) async {
     if (!_paginatedCache.containsKey(noPaginationCacheKey)) {
       _paginatedCache[noPaginationCacheKey] = <CacheKey, Set<String>>{};
     }
@@ -116,12 +121,14 @@ class InMemoryCachePersistence extends CachePersistence {
   }
 
   @override
-  Iterable<CacheKey> getRequestCacheKeys() => _requestCache.keys;
+  Future<Iterable<CacheKey>> getRequestCacheKeys() async => _requestCache.keys;
 
   @override
-  Iterable<CacheKey> noPaginationCacheKeys() => _paginatedCache.keys;
+  Future<Iterable<CacheKey>> noPaginationCacheKeys() async =>
+      _paginatedCache.keys;
 
   @override
-  Iterable<CacheKey> noPaginationInnerKeys(CacheKey noPaginationCacheKey) =>
-      _paginatedCache[noPaginationCacheKey]!.keys;
+  Future<Iterable<CacheKey>> noPaginationInnerKeys(
+    CacheKey noPaginationCacheKey,
+  ) async => _paginatedCache[noPaginationCacheKey]!.keys;
 }

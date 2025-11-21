@@ -3,7 +3,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import '../models/test_model.dart';
 
-class MockCachePersistence extends Mock implements CachePersistence {}
+class MockRequestCachePersistence extends Mock
+    implements RequestCachePersistence {}
 
 final details = RequestDetails();
 final abcDetails = RequestDetails(
@@ -19,7 +20,7 @@ final page2Details = RequestDetails(
 void main() {
   late LocalSource<TestModel> mem;
   late LocalSource<TestModel> mockMem;
-  late MockCachePersistence cache;
+  late MockRequestCachePersistence requestCache;
   const item = TestModel(id: 'item 1');
   const item2 = TestModel(id: 'item 2');
   const item3 = TestModel(id: 'item 3');
@@ -27,17 +28,17 @@ void main() {
   group('LocalMemorySource.setItem should', () {
     late LocalMemorySource<TestModel> idSettingMem;
     setUp(() {
-      cache = MockCachePersistence();
+      requestCache = MockRequestCachePersistence();
       mem = LocalSource<TestModel>(
-        InMemorySourcePersistence<TestModel>(
+        InMemoryItemsPersistence<TestModel>(
           TestModel.bindings.getId,
         ),
         InMemoryCachePersistence(),
         bindings: TestModel.bindings,
       );
       mockMem = LocalSource<TestModel>(
-        InMemorySourcePersistence<TestModel>(TestModel.bindings.getId),
-        cache,
+        InMemoryItemsPersistence<TestModel>(TestModel.bindings.getId),
+        requestCache,
         bindings: TestModel.bindings,
       );
       idSettingMem = LocalMemorySource<TestModel>(
@@ -55,7 +56,7 @@ void main() {
 
       await mockMem.setItem(item, details);
       await mockMem.setItem(item2, abcDetails);
-      verifyNever(() => cache.setCacheKey(details.cacheKey, any()));
+      verifyNever(() => requestCache.setCacheKey(details.cacheKey, any()));
     });
 
     test('accept items twice', () async {
@@ -67,7 +68,7 @@ void main() {
 
       await mockMem.setItem(item, details);
       await mockMem.setItem(item, details);
-      verifyNever(() => cache.setCacheKey(details.cacheKey, any()));
+      verifyNever(() => requestCache.setCacheKey(details.cacheKey, any()));
     });
 
     test('overwrite', () async {
@@ -97,9 +98,11 @@ void main() {
 
       // setItem never writes cache info - only setItems can do that
       await mockMem.setItem(item, deets);
-      verifyNever(() => cache.setCacheKey(deets.cacheKey, any())).called(0);
       verifyNever(
-        () => cache.setPaginatedCacheKey(
+        () => requestCache.setCacheKey(deets.cacheKey, any()),
+      ).called(0);
+      verifyNever(
+        () => requestCache.setPaginatedCacheKey(
           noPaginationCacheKey: any(named: 'noPaginationCacheKey'),
           cacheKey: any(named: 'cacheKey'),
           ids: any(named: 'ids'),
@@ -116,15 +119,15 @@ void main() {
 
   group('LocalMemorySource.setItems should', () {
     setUp(() {
-      cache = MockCachePersistence();
+      requestCache = MockRequestCachePersistence();
       mem = LocalSource<TestModel>(
-        InMemorySourcePersistence<TestModel>(TestModel.bindings.getId),
+        InMemoryItemsPersistence<TestModel>(TestModel.bindings.getId),
         InMemoryCachePersistence(),
         bindings: TestModel.bindings,
       );
       mockMem = LocalSource<TestModel>(
-        InMemorySourcePersistence<TestModel>(TestModel.bindings.getId),
-        cache,
+        InMemoryItemsPersistence<TestModel>(TestModel.bindings.getId),
+        requestCache,
         bindings: TestModel.bindings,
       );
     });
@@ -141,13 +144,25 @@ void main() {
 
     test('set items mocked', () async {
       const item2 = TestModel(id: 'item 2');
+      when(
+        () => requestCache.setCacheKey(details.cacheKey, <String>{
+          item.id!,
+          item2.id!,
+        }),
+      ).thenAnswer((_) async {});
+      when(
+        () => requestCache.setCacheKey(details.cacheKey, <String>{
+          item2.id!,
+          item3.id!,
+        }),
+      ).thenAnswer((_) async {});
       await mockMem.setItems([item, item2], details);
       // Called a first time
-      verify(() => cache.setCacheKey(details.cacheKey, any())).called(1);
+      verify(() => requestCache.setCacheKey(details.cacheKey, any())).called(1);
 
       await mockMem.setItems([item2, item3], details);
       // Called again
-      verify(() => cache.setCacheKey(details.cacheKey, any())).called(1);
+      verify(() => requestCache.setCacheKey(details.cacheKey, any())).called(1);
     });
 
     test('set items with in waves with all pagination', () async {
@@ -161,10 +176,32 @@ void main() {
     });
 
     test('set items with in waves with all pagination [mock mem]', () async {
+      when(
+        () => requestCache.setPaginatedCacheKey(
+          noPaginationCacheKey: paginationDetails.noPaginationCacheKey,
+          cacheKey: paginationDetails.cacheKey,
+          ids: <String>{
+            item.id!,
+            item2.id!,
+          },
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => requestCache.setPaginatedCacheKey(
+          noPaginationCacheKey: paginationDetails.noPaginationCacheKey,
+          cacheKey: paginationDetails.cacheKey,
+          ids: <String>{
+            item2.id!,
+            item3.id!,
+          },
+        ),
+      ).thenAnswer((_) async {});
       await mockMem.setItems([item, item2], paginationDetails);
-      verifyNever(() => cache.setCacheKey(paginationDetails.cacheKey, any()));
+      verifyNever(
+        () => requestCache.setCacheKey(paginationDetails.cacheKey, any()),
+      );
       verify(
-        () => cache.setPaginatedCacheKey(
+        () => requestCache.setPaginatedCacheKey(
           noPaginationCacheKey: any(
             named: 'noPaginationCacheKey',
             that: equals(paginationDetails.noPaginationCacheKey),
@@ -182,9 +219,11 @@ void main() {
 
       await mockMem.setItems([item2, item3], paginationDetails);
 
-      verifyNever(() => cache.setCacheKey(paginationDetails.cacheKey, any()));
+      verifyNever(
+        () => requestCache.setCacheKey(paginationDetails.cacheKey, any()),
+      );
       verify(
-        () => cache.setPaginatedCacheKey(
+        () => requestCache.setPaginatedCacheKey(
           noPaginationCacheKey: any(
             named: 'noPaginationCacheKey',
             that: equals(paginationDetails.noPaginationCacheKey),
@@ -213,10 +252,31 @@ void main() {
     });
 
     test('set items with pagination then without [mock mem]', () async {
+      when(
+        () => requestCache.setPaginatedCacheKey(
+          noPaginationCacheKey: paginationDetails.noPaginationCacheKey,
+          cacheKey: paginationDetails.cacheKey,
+          ids: <String>{
+            item.id!,
+            item2.id!,
+          },
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => requestCache.setCacheKey(
+          details.cacheKey,
+          <String>{
+            item2.id!,
+            item3.id!,
+          },
+        ),
+      ).thenAnswer((_) async {});
       await mockMem.setItems([item, item2], paginationDetails);
-      verifyNever(() => cache.setCacheKey(paginationDetails.cacheKey, any()));
+      verifyNever(
+        () => requestCache.setCacheKey(paginationDetails.cacheKey, any()),
+      );
       verify(
-        () => cache.setPaginatedCacheKey(
+        () => requestCache.setPaginatedCacheKey(
           noPaginationCacheKey: any(
             named: 'noPaginationCacheKey',
             that: equals(paginationDetails.noPaginationCacheKey),
@@ -234,10 +294,11 @@ void main() {
 
       await mockMem.setItems([item2, item3], details);
       verify(
-        () => cache.setCacheKey(details.cacheKey, {item2.id!, item3.id!}),
+        () =>
+            requestCache.setCacheKey(details.cacheKey, {item2.id!, item3.id!}),
       ).called(1);
       verifyNever(
-        () => cache.setPaginatedCacheKey(
+        () => requestCache.setPaginatedCacheKey(
           noPaginationCacheKey: any(named: 'noPaginationCacheKey'),
           cacheKey: any(named: 'cacheKey'),
           ids: any(named: 'ids'),
@@ -263,10 +324,26 @@ void main() {
     test(
       'set items with all pagination requests different page [mock mem]',
       () async {
+        when(
+          () => requestCache.setPaginatedCacheKey(
+            noPaginationCacheKey: paginationDetails.noPaginationCacheKey,
+            cacheKey: paginationDetails.cacheKey,
+            ids: <String>{item.id!, item2.id!},
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => requestCache.setPaginatedCacheKey(
+            noPaginationCacheKey: page2Details.noPaginationCacheKey,
+            cacheKey: page2Details.cacheKey,
+            ids: <String>{item3.id!},
+          ),
+        ).thenAnswer((_) async {});
         await mockMem.setItems([item, item2], paginationDetails);
-        verifyNever(() => cache.setCacheKey(paginationDetails.cacheKey, any()));
+        verifyNever(
+          () => requestCache.setCacheKey(paginationDetails.cacheKey, any()),
+        );
         verify(
-          () => cache.setPaginatedCacheKey(
+          () => requestCache.setPaginatedCacheKey(
             noPaginationCacheKey: any(
               named: 'noPaginationCacheKey',
               that: equals(paginationDetails.noPaginationCacheKey),
@@ -283,9 +360,11 @@ void main() {
         ).called(1);
 
         await mockMem.setItems([item3], page2Details);
-        verifyNever(() => cache.setCacheKey(page2Details.cacheKey, any()));
+        verifyNever(
+          () => requestCache.setCacheKey(page2Details.cacheKey, any()),
+        );
         verify(
-          () => cache.setPaginatedCacheKey(
+          () => requestCache.setPaginatedCacheKey(
             noPaginationCacheKey: any(
               named: 'noPaginationCacheKey',
               that: equals(page2Details.noPaginationCacheKey),
@@ -314,12 +393,24 @@ void main() {
     });
 
     test('set items with set name [mock mem]', () async {
+      when(
+        () => requestCache.setCacheKey(
+          details.cacheKey,
+          <String>{item.id!, item2.id!},
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => requestCache.setCacheKey(
+          abcDetails.cacheKey,
+          <String>{item2.id!, item3.id!},
+        ),
+      ).thenAnswer((_) async {});
       await mockMem.setItems([item, item2], details);
       verify(
-        () => cache.setCacheKey(details.cacheKey, {item.id!, item2.id!}),
+        () => requestCache.setCacheKey(details.cacheKey, {item.id!, item2.id!}),
       ).called(1);
       verifyNever(
-        () => cache.setPaginatedCacheKey(
+        () => requestCache.setPaginatedCacheKey(
           noPaginationCacheKey: any(named: 'noPaginationCacheKey'),
           cacheKey: any(named: 'cacheKey'),
           ids: any(named: 'ids'),
@@ -328,10 +419,13 @@ void main() {
 
       await mockMem.setItems([item2, item3], abcDetails);
       verify(
-        () => cache.setCacheKey(abcDetails.cacheKey, {item2.id!, item3.id!}),
+        () => requestCache.setCacheKey(abcDetails.cacheKey, {
+          item2.id!,
+          item3.id!,
+        }),
       ).called(1);
       verifyNever(
-        () => cache.setPaginatedCacheKey(
+        () => requestCache.setPaginatedCacheKey(
           noPaginationCacheKey: any(named: 'noPaginationCacheKey'),
           cacheKey: any(named: 'cacheKey'),
           ids: any(named: 'ids'),
@@ -510,7 +604,7 @@ void main() {
   group('LocalMemorySource.requestCache should', () {
     setUp(() {
       mem = LocalSource<TestModel>(
-        InMemorySourcePersistence<TestModel>(TestModel.bindings.getId),
+        InMemoryItemsPersistence<TestModel>(TestModel.bindings.getId),
         InMemoryCachePersistence(),
         bindings: TestModel.bindings,
       );

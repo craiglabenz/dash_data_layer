@@ -161,7 +161,7 @@ class SourceList<T> extends DataContract<T> {
         // Missing Ids at this point would mean that we tried to load data from
         // the server and still failed to pull in certain Ids. That means they
         // don't exist anymore, and thus we can delete them.
-        (pastSource as LocalSource<T>).deleteIds(missingIds);
+        await (pastSource as LocalSource<T>).deleteIds(missingIds);
       }
     }
 

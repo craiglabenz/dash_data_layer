@@ -1,86 +1,95 @@
+import 'dart:async';
+
 import 'package:data_layer/data_layer.dart';
 import 'package:logging/logging.dart';
 
 /// Function which can assign a new Id to an unsaved item.
 typedef IdBuilder<T> = String Function(T);
 
-/// Interface for how a [LocalSource] persists its request cache data.
-abstract class CachePersistence {
+/// Interface for how a [LocalSource] persists which requests returned which
+/// records. Internally, this should store a map of request [CacheKey] values
+/// to the set of Ids on each record returned by the server.
+abstract class RequestCachePersistence {
   /// Logs a [RequestDetails.cacheKey] as being associated with these ids.
-  void setCacheKey(CacheKey key, Set<String> ids);
+  Future<void> setCacheKey(CacheKey key, Set<String> ids);
 
-  /// Returns all Ids associated with the given cache, if any.
-  Set<String>? getCacheKey(CacheKey key);
+  /// Returns all Ids associated with the given cache, if any. Empty result
+  /// sets are not written to the cache, so a null result could indicate that
+  /// the request is completely fresh or that it was previously made but
+  /// returned no results.
+  Future<Set<String>?> getCacheKey(CacheKey key);
 
   /// Yields all keys in the normal request cache.
-  Iterable<CacheKey> getRequestCacheKeys();
+  Future<Iterable<CacheKey>> getRequestCacheKeys();
 
   /// Yields all top level keys in the paginated cache.
-  Iterable<CacheKey> noPaginationCacheKeys();
+  Future<Iterable<CacheKey>> noPaginationCacheKeys();
 
   /// Yields all second level keys under the top level key.
-  Iterable<CacheKey> noPaginationInnerKeys(CacheKey noPaginationCacheKey);
+  Future<Iterable<CacheKey>> noPaginationInnerKeys(
+    CacheKey noPaginationCacheKey,
+  );
 
   /// Removes any trace of the [RequestDetails.cacheKey].
-  void clearCacheKey(CacheKey key);
+  Future<void> clearCacheKey(CacheKey key);
 
   /// Logs a paginated [RequestDetails.noPaginationCacheKey] and
   /// [RequestDetails.cacheKey] as being associated with these ids.
-  void setPaginatedCacheKey({
+  Future<void> setPaginatedCacheKey({
     required CacheKey noPaginationCacheKey,
     required CacheKey cacheKey,
     required Set<String> ids,
   });
 
   /// Returns all Ids associated with the given cache, if any.
-  Set<String>? getPaginatedCacheKey({
+  Future<Set<String>?> getPaginatedCacheKey({
     required CacheKey noPaginationCacheKey,
     required CacheKey cacheKey,
   });
 
   /// Removes any trace of the paginated [RequestDetails] from the cache,
   /// including other pages from the same request.
-  void clearPaginatedCacheKey({
+  Future<void> clearPaginatedCacheKey({
     required CacheKey noPaginationCacheKey,
   });
 
   /// Clears all caching information.
-  void clear();
+  Future<void> clear();
 }
 
-/// Engine of [LocalSource] which gives it its juice. Typical options are
-/// in-memory and `pkg:hive_ce`.
-abstract class LocalSourcePersistence<T> {
+/// Engine of [LocalSource] which stores serialized versions of actual data
+/// records, accessible by their unique identifiers.
+abstract class LocalSourceItemsPersistence<T> {
   /// Deletes all objects.
-  void clear();
+  Future<void> clear();
 
   /// Loads the instance of [T] whose primary key is [id].
-  T? getById(String id);
+  Future<T?> getById(String id);
 
   /// Loads all known instances of [T] whose primary key is contained in [ids].
   /// [ids] is allowed to be empty, in which case this should of course return
   /// an empty iterable.
-  Iterable<T> getByIds(Set<String> ids);
+  Future<Iterable<T>> getByIds(Set<String> ids);
 
   /// Persists an instance of [T].
-  void setItem(T item, {required bool shouldOverwrite});
+  Future<void> setItem(T item, {required bool shouldOverwrite});
 
   /// Persists multiple instances of [T].
-  void setItems(Iterable<T> items, {required bool shouldOverwrite});
+  Future<void> setItems(Iterable<T> items, {required bool shouldOverwrite});
 
   /// Removes records matching these Ids.
-  void deleteIds(Set<String> ids);
+  Future<void> deleteIds(Set<String> ids);
 }
 
 /// {@template LocalSource}
 /// Flavor of [Source] which is entirely on-device. Exists to coordinate its
-/// [LocalSourcePersistence] and optional [CachePersistence].
+/// [LocalSourceItemsPersistence] and [RequestCachePersistence].
 /// {@endtemplate}
 class LocalSource<T> extends Source<T> {
   /// {@macro LocalSource}
   LocalSource(
     this._itemsPersistence,
-    this._cachePersistence, {
+    this._requestCachePersistence, {
     this.idBuilder,
     super.bindings,
   });
@@ -92,28 +101,33 @@ class LocalSource<T> extends Source<T> {
   final IdBuilder<T>? idBuilder;
 
   /// Warehouse for all known instances of [T].
-  final LocalSourcePersistence<T> _itemsPersistence;
+  final LocalSourceItemsPersistence<T> _itemsPersistence;
 
   /// Warehouse for caching metadata, both paginated and unpaginated.
-  final CachePersistence _cachePersistence;
+  final RequestCachePersistence _requestCachePersistence;
 
   /// Removes all data from the local persistence.
-  Future<void> clear() async {
-    _itemsPersistence.clear();
-    _cachePersistence.clear();
-  }
+  Future<void> clear() => Future.wait<void>([
+    _itemsPersistence.clear(),
+    _requestCachePersistence.clear(),
+  ]);
 
   /// Removes these Ids from storage anywhere they may exist, which is why no
   /// [RequestDetails] are needed.
-  void deleteIds(Set<String> ids) {
+  Future<void> deleteIds(Set<String> ids) async {
     _log.finest('Deleting $ids');
-    _itemsPersistence.deleteIds(ids);
+    await _itemsPersistence.deleteIds(ids);
 
     final requestCacheCopy = <CacheKey, Set<String>>{};
-    for (final cacheKey in _cachePersistence.getRequestCacheKeys()) {
-      requestCacheCopy[cacheKey] = _cachePersistence.getCacheKey(cacheKey)!;
+    for (final cacheKey
+        in await _requestCachePersistence.getRequestCacheKeys()) {
+      final cacheResults = await _requestCachePersistence.getCacheKey(cacheKey);
+      if (cacheResults != null) {
+        requestCacheCopy[cacheKey] = cacheResults;
+      }
     }
-    for (final cacheKey in _cachePersistence.getRequestCacheKeys()) {
+    for (final cacheKey
+        in await _requestCachePersistence.getRequestCacheKeys()) {
       requestCacheCopy[cacheKey]!.removeAll(ids);
       if (requestCacheCopy[cacheKey]!.isEmpty) {
         requestCacheCopy.remove(cacheKey);
@@ -121,32 +135,39 @@ class LocalSource<T> extends Source<T> {
     }
 
     final paginatedCacheCopy = <CacheKey, Map<CacheKey, Set<String>>>{};
-    var noPageIter = _cachePersistence.noPaginationCacheKeys();
+    var noPageIter = await _requestCachePersistence.noPaginationCacheKeys();
     for (final noPaginationCacheKey in noPageIter) {
       // Add a default empty Map if the key is brand new
       if (!paginatedCacheCopy.containsKey(noPaginationCacheKey)) {
         paginatedCacheCopy[noPaginationCacheKey] = <CacheKey, Set<String>>{};
       }
 
-      final innerPageIter = _cachePersistence.noPaginationInnerKeys(
-        noPaginationCacheKey,
-      );
+      final innerPageIter = await _requestCachePersistence
+          .noPaginationInnerKeys(
+            noPaginationCacheKey,
+          );
       for (final cacheKey in innerPageIter) {
-        final innerIds = _cachePersistence.getPaginatedCacheKey(
+        final innerIds = await _requestCachePersistence.getPaginatedCacheKey(
           noPaginationCacheKey: noPaginationCacheKey,
           cacheKey: cacheKey,
         );
-        paginatedCacheCopy[noPaginationCacheKey]![cacheKey] = innerIds!;
+        if (innerIds != null) {
+          paginatedCacheCopy[noPaginationCacheKey]![cacheKey] = innerIds;
+        }
       }
     }
 
-    noPageIter = _cachePersistence.noPaginationCacheKeys();
+    noPageIter = await _requestCachePersistence.noPaginationCacheKeys();
     for (final noPaginationCacheKey in noPageIter) {
-      final innerPageIter = _cachePersistence.noPaginationInnerKeys(
-        noPaginationCacheKey,
-      );
+      final innerPageIter = await _requestCachePersistence
+          .noPaginationInnerKeys(
+            noPaginationCacheKey,
+          );
       for (final cacheKey in innerPageIter) {
-        paginatedCacheCopy[noPaginationCacheKey]![cacheKey]!.removeAll(ids);
+        if (paginatedCacheCopy[noPaginationCacheKey] != null &&
+            paginatedCacheCopy[noPaginationCacheKey]![cacheKey] != null) {
+          paginatedCacheCopy[noPaginationCacheKey]![cacheKey]!.removeAll(ids);
+        }
 
         if (paginatedCacheCopy[noPaginationCacheKey]![cacheKey]!.isEmpty) {
           paginatedCacheCopy[noPaginationCacheKey]!.remove(cacheKey);
@@ -157,13 +178,18 @@ class LocalSource<T> extends Source<T> {
       }
     }
 
-    _cachePersistence.clear();
+    // Remove the entire request cache persistence and rebuild it from the
+    // copy which has had the necessary deleted items removed.
+    await _requestCachePersistence.clear();
     for (final cacheKey in requestCacheCopy.keys) {
-      _cachePersistence.setCacheKey(cacheKey, requestCacheCopy[cacheKey]!);
+      await _requestCachePersistence.setCacheKey(
+        cacheKey,
+        requestCacheCopy[cacheKey]!,
+      );
     }
     for (final noPaginationCacheKey in paginatedCacheCopy.keys) {
       for (final cacheKey in paginatedCacheCopy[noPaginationCacheKey]!.keys) {
-        _cachePersistence.setPaginatedCacheKey(
+        await _requestCachePersistence.setPaginatedCacheKey(
           noPaginationCacheKey: noPaginationCacheKey,
           cacheKey: cacheKey,
           ids: paginatedCacheCopy[noPaginationCacheKey]![cacheKey]!,
@@ -179,7 +205,7 @@ class LocalSource<T> extends Source<T> {
         'Clearing unpaginated request $details with CacheKey '
         '${details.cacheKey}',
       );
-      _cachePersistence.clearCacheKey(details.cacheKey);
+      await _requestCachePersistence.clearCacheKey(details.cacheKey);
     } else {
       _log.finest(
         'Clearing paginated request $details with CacheKey '
@@ -187,7 +213,7 @@ class LocalSource<T> extends Source<T> {
       );
       // The "noPaginationCacheKey" is the family cache key of a paginated
       // request, so this removes all pages of a given request.
-      _cachePersistence.clearPaginatedCacheKey(
+      await _requestCachePersistence.clearPaginatedCacheKey(
         noPaginationCacheKey: details.noPaginationCacheKey,
       );
     }
@@ -199,7 +225,10 @@ class LocalSource<T> extends Source<T> {
   @override
   Future<ReadResult<T>> getById(String id, RequestDetails details) async {
     details.assertEmpty('LocalSource<$T>.getById');
-    return ReadSuccess<T>(_itemsPersistence.getById(id), details: details);
+    return ReadSuccess<T>(
+      await _itemsPersistence.getById(id),
+      details: details,
+    );
   }
 
   @override
@@ -208,7 +237,7 @@ class LocalSource<T> extends Source<T> {
     RequestDetails details,
   ) async {
     details.assertEmpty('LocalSource<$T>.getByIds');
-    final items = _itemsPersistence.getByIds(ids);
+    final items = await _itemsPersistence.getByIds(ids);
     final foundItemIds = items
         .map<String>((item) => bindings.getId(item)!)
         .toSet();
@@ -225,10 +254,10 @@ class LocalSource<T> extends Source<T> {
   Future<ReadListResult<T>> getItems(RequestDetails details) async {
     Set<String>? ids;
     if (details.pagination == null) {
-      ids = _cachePersistence.getCacheKey(details.cacheKey);
+      ids = await _requestCachePersistence.getCacheKey(details.cacheKey);
       _log.finest('Getting items for ${details.cacheKey}. Found Ids $ids');
     } else {
-      ids = _cachePersistence.getPaginatedCacheKey(
+      ids = await _requestCachePersistence.getPaginatedCacheKey(
         noPaginationCacheKey: details.noPaginationCacheKey,
         cacheKey: details.cacheKey,
       );
@@ -245,7 +274,7 @@ class LocalSource<T> extends Source<T> {
       'Empty sets should not be cached.',
     );
 
-    final items = ids != null ? _itemsPersistence.getByIds(ids) : <T>[];
+    final items = ids != null ? await _itemsPersistence.getByIds(ids) : <T>[];
 
     return ReadListResult.fromList(items, details, <String>{}, bindings.getId);
   }
@@ -267,7 +296,7 @@ class LocalSource<T> extends Source<T> {
         itemCopy = _generateId(itemCopy);
       }
     }
-    _itemsPersistence.setItem(
+    await _itemsPersistence.setItem(
       itemCopy,
       shouldOverwrite: details.shouldOverwrite,
     );
@@ -287,30 +316,33 @@ class LocalSource<T> extends Source<T> {
     final itemIds = items.map<String>((item) => bindings.getId(item)!).toSet();
     if (details.pagination == null) {
       _log.finest('Caching $itemIds to ${details.cacheKey}');
-      _cachePersistence.setCacheKey(details.cacheKey, itemIds);
+      await _requestCachePersistence.setCacheKey(details.cacheKey, itemIds);
     } else {
       _log.finest(
         'Caching $itemIds to ${details.noPaginationCacheKey}::'
         '${details.cacheKey}',
       );
-      _cachePersistence.setPaginatedCacheKey(
+      await _requestCachePersistence.setPaginatedCacheKey(
         noPaginationCacheKey: details.noPaginationCacheKey,
         cacheKey: details.cacheKey,
         ids: itemIds,
       );
     }
-    _itemsPersistence.setItems(items, shouldOverwrite: details.shouldOverwrite);
+    await _itemsPersistence.setItems(
+      items,
+      shouldOverwrite: details.shouldOverwrite,
+    );
 
     return WriteListSuccess<T>(items, details: details);
   }
 
   @override
-  Future<DeleteResult<T>> delete(String id, RequestDetails details) {
+  Future<DeleteResult<T>> delete(String id, RequestDetails details) async {
     assert(
       details.requestType.includes(sourceType),
       'Should not route ${details.requestType} request to $this',
     );
-    deleteIds({id});
-    return Future.value(DeleteSuccess<T>(details));
+    await deleteIds({id});
+    return DeleteSuccess<T>(details);
   }
 }

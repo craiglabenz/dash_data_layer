@@ -23,8 +23,8 @@ final requestHeaders = <String, String>{
 };
 const errorBody = '{"error": "not found"}';
 
-final obj = TestModel.fromJson(jsonDecode(detailResponseBody) as Json);
-final obj2 = TestModel.fromJson(jsonDecode(detailResponseBody2) as Json);
+final fred = TestModel.fromJson(jsonDecode(detailResponseBody) as Json);
+final flintstone = TestModel.fromJson(jsonDecode(detailResponseBody2) as Json);
 
 final details = RequestDetails();
 final localDetails = RequestDetails(requestType: RequestType.local);
@@ -136,7 +136,7 @@ void main() {
       final sl = getSourceList(delegate200);
       final readResult = await sl.getById(_id, details);
       final loadedObj = readResult.getOrRaise().item;
-      expect(loadedObj, equals(obj));
+      expect(loadedObj, equals(fred));
       // Object will be asserted to exist, but it should not be cached.
       // Only [setItems] can power [getItems].
       await hasNotCached(
@@ -154,7 +154,7 @@ void main() {
         expect(readResult.getOrRaise().item, isNull);
         await hasNotCached(
           sl,
-          [obj, obj2],
+          [fred, flintstone],
           [details, localDetails],
           shouldExistAtAll: false,
         );
@@ -165,23 +165,23 @@ void main() {
     test('honor request types', () async {
       final sl = getSourceList(delegate404x2);
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItem(
-        obj,
+        fred,
         localDetails,
       );
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItem(
-        obj,
+        fred,
         localDetails,
       );
 
-      final readResult = await sl.getById(obj.id!, details);
-      expect(readResult.getOrRaise().item, obj);
+      final readResult = await sl.getById(fred.id!, details);
+      expect(readResult.getOrRaise().item, fred);
 
-      final localReadResult = await sl.getById(obj.id!, localDetails);
-      expect(localReadResult.getOrRaise().item, obj);
-      final localReadResult2 = await sl.getById(obj2.id!, localDetails);
+      final localReadResult = await sl.getById(fred.id!, localDetails);
+      expect(localReadResult.getOrRaise().item, fred);
+      final localReadResult2 = await sl.getById(flintstone.id!, localDetails);
       expect(localReadResult2.getOrRaise().item, isNull);
 
-      final remoteReadResult = await sl.getById(obj.id!, refreshDetails);
+      final remoteReadResult = await sl.getById(fred.id!, refreshDetails);
       expect(remoteReadResult.getOrRaise().item, isNull);
     });
   });
@@ -190,8 +190,8 @@ void main() {
     test('get and cache items', () async {
       final sl = getSourceList(getRequestDelegate([twoElementResponseBody]));
       final readResult = await sl.getByIds({_id, _id2}, details);
-      expect(readResult.getOrRaise().items, containsAll([obj, obj2]));
-      await hasNotCached(sl, [obj, obj2], [details, localDetails]);
+      expect(readResult.getOrRaise().items, containsAll([fred, flintstone]));
+      await hasNotCached(sl, [fred, flintstone], [details, localDetails]);
     });
 
     test(
@@ -200,12 +200,12 @@ void main() {
         final sl = getSourceList(getRequestDelegate([listResponseBody]));
         final readResult = await sl.getByIds({_id, _id2}, details);
         final loadedItems = readResult.getOrRaise().items;
-        expect(loadedItems, contains(obj));
-        expect(loadedItems, isNot(contains(obj2)));
-        await hasNotCached(sl, [obj], [details, localDetails]);
+        expect(loadedItems, contains(fred));
+        expect(loadedItems, isNot(contains(flintstone)));
+        await hasNotCached(sl, [fred], [details, localDetails]);
         await hasNotCached(
           sl,
-          [obj2],
+          [flintstone],
           [details, localDetails],
           shouldExistAtAll: false,
         );
@@ -216,62 +216,62 @@ void main() {
     test('complete partially filled local hits', () async {
       final sl = getSourceList(twoItemdelegate200);
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItem(
-        obj,
+        fred,
         localDetails,
       );
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItem(
-        obj,
+        fred,
         localDetails,
       );
 
       final localReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, localDetails);
       final loadedItems = localReadResult.getOrRaise().items;
-      expect(loadedItems, equals({obj}));
-      expect(localReadResult.getOrRaise().missingItemIds, {obj2.id!});
+      expect(loadedItems, equals({fred}));
+      expect(localReadResult.getOrRaise().missingItemIds, {flintstone.id!});
       // Not cached because only [setItems] can populate the cache
-      await hasNotCached(sl, [obj], [details, localDetails]);
+      await hasNotCached(sl, [fred], [details, localDetails]);
       await hasNotCached(
         sl,
-        [obj2],
+        [flintstone],
         [details, localDetails],
         shouldExistAtAll: false,
       );
 
       final remoteReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, refreshDetails);
       expect(remoteReadResult.getOrRaise().items.length, 2);
-      await hasNotCached(sl, [obj, obj2], [details, localDetails]);
+      await hasNotCached(sl, [fred, flintstone], [details, localDetails]);
     });
 
     test('honor request types', () async {
       final sl = getSourceList(getEmptyDelegate());
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localDetails);
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localDetails);
 
-      final readResult = await sl.getByIds({obj.id!, obj2.id!}, details);
+      final readResult = await sl.getByIds({fred.id!, flintstone.id!}, details);
       expect(readResult.getOrRaise().items.length, 2);
-      await hasCached(sl, [obj, obj2], [details, localDetails]);
+      await hasCached(sl, [fred, flintstone], [details, localDetails]);
 
       final localReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, localDetails);
       expect(localReadResult.getOrRaise().items.length, 2);
 
       final remoteReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, refreshDetails);
       expect(remoteReadResult.getOrRaise().items.length, 0);
     });
@@ -281,50 +281,50 @@ void main() {
 
       // Write obj1 and obj2 to both [details] and [abcDetails]
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localAbcDetails);
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], details);
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localAbcDetails);
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], details);
 
-      final readResult = await sl.getByIds({obj.id!, obj2.id!}, details);
+      final readResult = await sl.getByIds({fred.id!, flintstone.id!}, details);
       expect(readResult.getOrRaise().items.length, 2);
       await hasCached(
         sl,
-        [obj, obj2],
+        [fred, flintstone],
         [details, localDetails, localAbcDetails],
       );
 
       final localReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, localDetails);
       expect(localReadResult.getOrRaise().items.length, 2);
-      await hasCached(sl, [obj, obj2], [details, localDetails]);
+      await hasCached(sl, [fred, flintstone], [details, localDetails]);
 
       final remoteReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, refreshDetails);
       expect(remoteReadResult.getOrRaise().items.length, 1);
       await hasCached(
         sl,
-        [obj],
+        [fred],
         [details, localDetails],
       );
       await hasNotCached(
         sl,
-        [obj2],
+        [flintstone],
         [details, localDetails],
         shouldExistAtAll: false,
       );
@@ -335,45 +335,45 @@ void main() {
 
       // Write obj1 and obj2 to both [details] and [abcDetails]
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localAbcDetails);
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], details);
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localAbcDetails);
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], details);
 
-      final readResult = await sl.getByIds({obj.id!, obj2.id!}, details);
+      final readResult = await sl.getByIds({fred.id!, flintstone.id!}, details);
       expect(readResult.getOrRaise().items.length, 2);
       await hasCached(
         sl,
-        [obj, obj2],
+        [fred, flintstone],
         [details, localDetails, localAbcDetails],
       );
 
       final localReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, localDetails);
       expect(localReadResult.getOrRaise().items.length, 2);
-      await hasCached(sl, [obj, obj2], [details, localDetails]);
+      await hasCached(sl, [fred, flintstone], [details, localDetails]);
 
       final remoteReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, refreshDetails);
       expect(remoteReadResult.getOrRaise().items.length, 0);
       await hasNotCached(
         sl,
-        [obj, obj2],
+        [fred, flintstone],
         [details, localDetails],
         shouldExistAtAll: false,
       );
@@ -391,31 +391,34 @@ void main() {
 
       // Write obj1 and obj2 to [page1Details] and [page2Details], respectively
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
+        fred,
       ], page1Details);
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj2,
+        flintstone,
       ], page2Details);
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        obj,
+        fred,
       ], page1Details);
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        obj2,
+        flintstone,
       ], page2Details);
 
-      final readResult = await sl.getByIds({obj.id!, obj2.id!}, localDetails);
+      final readResult = await sl.getByIds({
+        fred.id!,
+        flintstone.id!,
+      }, localDetails);
       expect(readResult.getOrRaise().items.length, 2);
-      await hasCached(sl, [obj], [page1Details]);
-      await hasCached(sl, [obj2], [page2Details]);
+      await hasCached(sl, [fred], [page1Details]);
+      await hasCached(sl, [flintstone], [page2Details]);
       await hasNotCached(
         sl,
-        [obj, obj2],
+        [fred, flintstone],
         [details, localDetails, localAbcDetails],
       );
 
       final localReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, localDetails);
       expect(localReadResult.getOrRaise().items.length, 2);
 
@@ -423,21 +426,21 @@ void main() {
       expect(localRead2Result.getOrRaise().items.length, 0);
 
       // Only loads object 1, which removes object 2 from all local caches
-      final remoteReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
-      }, refreshDetails);
+      final remoteReadResult = await sl.getByIds(
+        {fred.id!, flintstone.id!},
+        refreshDetails,
+      );
       expect(remoteReadResult.getOrRaise().items.length, 1);
-      expect(remoteReadResult.getOrRaise().missingItemIds, {obj2.id!});
+      expect(remoteReadResult.getOrRaise().missingItemIds, {flintstone.id!});
       await hasCached(
         sl,
-        [obj],
+        [fred],
         [page1Details],
       );
-      await hasNotCached(sl, [obj], [details, page2Details]);
+      await hasNotCached(sl, [fred], [details, page2Details]);
       await hasNotCached(
         sl,
-        [obj2],
+        [flintstone],
         [details, page1Details, page2Details],
         shouldExistAtAll: false,
       );
@@ -446,26 +449,26 @@ void main() {
     test('surface 404s', () async {
       final sl = getSourceList(delegate404x2);
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localDetails);
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localDetails);
 
-      final readResult = await sl.getByIds({obj.id!, obj2.id!}, details);
+      final readResult = await sl.getByIds({fred.id!, flintstone.id!}, details);
       expect(readResult.getOrRaise().items.length, 2);
 
       final localReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, localDetails);
       expect(localReadResult.getOrRaise().items.length, 2);
 
       final remoteReadResult = await sl.getByIds({
-        obj.id!,
-        obj2.id!,
+        fred.id!,
+        flintstone.id!,
       }, refreshDetails);
       expect(remoteReadResult, isFailure);
     });
@@ -479,7 +482,12 @@ void main() {
       // Getting no results from the server saves the value as missing and logs
       // the request as being known-empty.
       expect(result.getOrRaise().items.length, 0);
-      await hasNotCached(sl, [obj, obj2], [details], shouldExistAtAll: false);
+      await hasNotCached(
+        sl,
+        [fred, flintstone],
+        [details],
+        shouldExistAtAll: false,
+      );
     });
 
     test('load items not yet locally cached', () async {
@@ -489,20 +497,25 @@ void main() {
       expect(localReadResult.getOrRaise().items.length, 0);
       // `details` is fine to pass here in place of `localDetails` because
       // `RequestType` is not factored into a RequestDetails' object's cache key
-      await hasNotCached(sl, [obj, obj2], [details], shouldExistAtAll: false);
+      await hasNotCached(
+        sl,
+        [fred, flintstone],
+        [details],
+        shouldExistAtAll: false,
+      );
 
       final remoteReadResult = await sl.getItems(refreshDetails);
       expect(remoteReadResult.getOrRaise().items.length, 2);
       // `details` is fine to pass here in place of `localDetails` because
       // `RequestType` is not factored into a RequestDetails' object's cache key
-      await hasCached(sl, [obj, obj2], [details]);
+      await hasCached(sl, [fred, flintstone], [details]);
     });
 
     test('load items already available in source', () async {
       final sl = getSourceList(twoItemdelegate200x2);
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localDetails);
 
       final localReadResult = await sl.getItems(localDetails);
@@ -517,11 +530,16 @@ void main() {
 
       final initialReadResult = await sl.getItems(localDetails);
       expect(initialReadResult.getOrRaise().items.length, 0);
-      await hasNotCached(sl, [obj, obj2], [details], shouldExistAtAll: false);
+      await hasNotCached(
+        sl,
+        [fred, flintstone],
+        [details],
+        shouldExistAtAll: false,
+      );
 
       final remoteReadResult = await sl.getItems(refreshDetails);
       expect(remoteReadResult.getOrRaise().items.length, 2);
-      await hasCached(sl, [obj, obj2], [details]);
+      await hasCached(sl, [fred, flintstone], [details]);
     });
 
     test('handle 404s', () async {
@@ -529,8 +547,8 @@ void main() {
         getRequestDelegate([errorBody], statusCode: HttpStatus.notFound),
       );
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        obj,
-        obj2,
+        fred,
+        flintstone,
       ], localDetails);
 
       final remoteReadResult = await sl.getItems(refreshDetails);
@@ -545,13 +563,13 @@ void main() {
 
       final remoteReadResult = await sl.getItems(details);
       expect(remoteReadResult.getOrRaise().items.length, 2);
-      await hasCached(sl, [obj, obj2], [details]);
+      await hasCached(sl, [fred, flintstone], [details]);
 
       final filteredDetails = RequestDetails(
         filter: const MsgStartsWithFilter('abc'),
         requestType: RequestType.local,
       );
-      await hasNotCached(sl, [obj, obj2], [filteredDetails]);
+      await hasNotCached(sl, [fred, flintstone], [filteredDetails]);
     });
 
     test('honor filters originally applied', () async {
@@ -562,8 +580,8 @@ void main() {
       );
       final remoteReadResult = await sl.getItems(filteredDetails);
       expect(remoteReadResult.getOrRaise().items.length, 2);
-      await hasCached(sl, [obj, obj2], [filteredDetails]);
-      await hasNotCached(sl, [obj, obj2], [details]);
+      await hasCached(sl, [fred, flintstone], [filteredDetails]);
+      await hasNotCached(sl, [fred, flintstone], [details]);
     });
 
     test('honor filters', () async {
@@ -577,13 +595,13 @@ void main() {
 
       final localReadResult = await sl.getItems(localDetails);
       expect(localReadResult.getOrRaise().items.length, 2);
-      await hasCached(sl, [obj, obj2], [details]);
+      await hasCached(sl, [fred, flintstone], [details]);
 
       final localMsgFredDetails = RequestDetails(
         filter: FieldEquals<TestModel, String>('msg', 'Fred', (obj) => obj.msg),
         requestType: RequestType.local,
       );
-      await hasNotCached(sl, [obj, obj2], [localMsgFredDetails]);
+      await hasNotCached(sl, [fred, flintstone], [localMsgFredDetails]);
 
       // Filters' contents are irrelevant because our fake API does not evaulate
       // its rules.
@@ -595,7 +613,7 @@ void main() {
       expect(globalResults.getOrRaise().items.length, 2);
       await hasCached(
         sl,
-        [obj, obj2],
+        [fred, flintstone],
         [details, localMsgFredDetails, globalMsgFredDetails],
       );
     });
@@ -606,7 +624,7 @@ void main() {
       const newObj = TestModel(id: null, msg: 'new');
       final sl = getSourceList(creatableDelegate);
       final writeResult = await sl.setItem(newObj, details);
-      expect(writeResult.getOrRaise().item, obj);
+      expect(writeResult.getOrRaise().item, fred);
       // Not cached because [setItem] cannot populate the cache
       await hasNotCached(sl, [writeResult.getOrRaise().item], [details]);
     });
@@ -639,7 +657,7 @@ void main() {
       );
       final writeResult = await sl.setItem(newObj, abcDetails);
       final savedObj = writeResult.getOrRaise().item;
-      expect(savedObj, obj);
+      expect(savedObj, fred);
 
       await hasNotCached(
         sl,
@@ -727,7 +745,7 @@ Future<void> hasCached(
           contains(item),
           reason:
               'Expected source $sourceIndex $source to find item '
-              '$itemIndex $item in RequestDetails $requestIndex $request',
+              '$itemIndex $item in RequestDetails index:$requestIndex $request',
         );
       }
     }
