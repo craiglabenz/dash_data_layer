@@ -68,6 +68,18 @@ void main() {
       expect(writeResult, isSuccess);
     });
 
+    test('setItem will set Id with CreationBindings', () async {
+      const item = TestModel();
+      final itemWithId = item.copyWith(id: 'abc');
+      when(
+        () => mockItemsBox.put('abc', itemWithId),
+      ).thenAnswer((_) => Future.value(itemWithId));
+
+      final writeResult = await source.setItem(item, details);
+      expect(writeResult, isSuccess);
+      expect((writeResult as WriteSuccess<TestModel>).item, itemWithId);
+    });
+
     test('setItems and getByIds', () async {
       final item1 = TestModel.randomId();
       final item2 = TestModel.randomId();

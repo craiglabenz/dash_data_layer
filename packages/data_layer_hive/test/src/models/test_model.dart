@@ -3,7 +3,7 @@ import 'package:data_layer/data_layer.dart';
 import 'package:equatable/equatable.dart';
 
 class TestModel {
-  const TestModel({required this.id, this.msg = defaultMessage});
+  const TestModel({this.id, this.msg = defaultMessage});
 
   factory TestModel.randomId([String msg = defaultMessage]) => TestModel(
     id: Random().nextDouble().toString(),
@@ -13,6 +13,11 @@ class TestModel {
   factory TestModel.fromJson(Map<String, dynamic> json) => TestModel(
     id: json['id'] as String?,
     msg: json['msg'] as String,
+  );
+
+  TestModel copyWith({String? id, String? msg}) => TestModel(
+    id: id ?? this.id,
+    msg: msg ?? this.msg,
   );
 
   final String? id;
@@ -38,12 +43,13 @@ class TestModel {
   @override
   String toString() => 'TestModel(id: $id, msg: $msg)';
 
-  static final bindings = Bindings<TestModel>(
+  static final bindings = CreationBindings<TestModel>(
     fromJson: TestModel.fromJson,
     getDetailUrl: (id) => ApiUrl(path: 'test/$id'),
     getListUrl: () => const ApiUrl(path: 'test/'),
     toJson: (TestModel obj) => obj.toJson(),
     getId: (TestModel obj) => obj.id,
+    save: (TestModel obj) => obj.copyWith(id: 'abc'),
   );
 }
 

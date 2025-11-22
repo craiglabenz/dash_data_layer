@@ -20,7 +20,6 @@ class HiveSource<T> extends LocalSource<T> with ReadinessMixin<void> {
   factory HiveSource({
     required Bindings<T> bindings,
     required Future<void> hiveInit,
-    IdBuilder<T>? idBuilder,
     HiveInterface? hive,
   }) {
     final hiveItemsPersistence = HiveItemsPersistence<T>(
@@ -28,6 +27,7 @@ class HiveSource<T> extends LocalSource<T> with ReadinessMixin<void> {
       bindings.getId,
       hiveInit,
       hive: hive,
+      setId: (bindings is CreationBindings<T>) ? bindings.save : null,
     );
     final hiveCachePersistence = HiveCachePersistence(
       bindings.getListUrl().path,
@@ -37,7 +37,6 @@ class HiveSource<T> extends LocalSource<T> with ReadinessMixin<void> {
     return HiveSource._(
         hiveItemsPersistence,
         hiveCachePersistence,
-        idBuilder: idBuilder,
         bindings: bindings,
       )
       .._hiveItemsPersistence = hiveItemsPersistence
@@ -49,7 +48,6 @@ class HiveSource<T> extends LocalSource<T> with ReadinessMixin<void> {
     HiveItemsPersistence<T> itemsPersistence,
     HiveCachePersistence cachePersistence, {
     required super.bindings,
-    super.idBuilder,
   }) : super(itemsPersistence, cachePersistence);
 
   late HiveItemsPersistence<T> _hiveItemsPersistence;
@@ -76,6 +74,7 @@ class HiveItemsPersistence<T> extends LocalSourceItemsPersistence<T>
     this.name,
     this.getId,
     this.hiveInit, {
+    this.setId,
     HiveInterface? hive,
   }) : _hive = hive ?? Hive;
 
@@ -89,6 +88,10 @@ class HiveItemsPersistence<T> extends LocalSourceItemsPersistence<T>
   final Future<void> hiveInit;
 
   final HiveInterface _hive;
+
+  /// Optional function to set an Id on an item. Should come from a
+  /// [CreationBindings] value.
+  final T Function(T)? setId;
 
   @override
   Future<void> performInitialization() async {
@@ -132,12 +135,17 @@ class HiveItemsPersistence<T> extends LocalSourceItemsPersistence<T>
 
   @override
   Future<void> setItem(T item, {required bool shouldOverwrite}) async {
-    assert(
-      getId(item) != null,
-      'Checking for null Id in Hive box - unsafe!',
-    );
-    if (shouldOverwrite || _itemsBox.get(getId(item)) == null) {
-      await (await itemsBox).put(getId(item), item);
+    T itemCopy = item;
+    if (getId(item) == null) {
+      if (setId != null) {
+        itemCopy = setId!.call(itemCopy);
+      } else {
+        throw Exception('Checking for null Id in Hive box - unsafe!');
+      }
+    }
+    final box = await itemsBox;
+    if (shouldOverwrite || box.get(getId(itemCopy)) == null) {
+      await box.put(getId(itemCopy), itemCopy);
     }
   }
 
