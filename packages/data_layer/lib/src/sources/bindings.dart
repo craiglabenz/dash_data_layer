@@ -43,6 +43,9 @@ class Bindings<T> {
 /// {@template CreationBindings}
 /// [Bindings] for an object that the client can save locally without requiring
 /// the use of the server to generate an Id.
+///
+/// Only use very intentionally, as this task is typically best completed by a
+/// server.
 /// {@endtemplate}
 class CreationBindings<T> extends Bindings<T> {
   /// {@macro CreationBindings}

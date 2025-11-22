@@ -6,9 +6,7 @@ Pure Dart package for isolating data layer abstractions from the rest of your ap
 
 # Motivation
 
-Correctly managing data is one of the most important parts of any app. Always loading data from the server every
-time you need it is easy, but not performant or offline-friendly. That suggests caching data; but as cache invalidation
-is one of the 3 hard problems in computer science, *there be dragons*.
+Correctly managing data is one of the most important parts of any app. Always loading data from the server every time you need it is easy, but not performant or offline-friendly. That suggests caching data; but as cache invalidation is one of the 3 hard problems in computer science, *there be dragons*.
 
 `pkg:data_layer` aims to provide a simple, yet powerful, way to manage data in your app.
 
@@ -23,15 +21,13 @@ Everything in `pkg:data_layer` resolves around satisfying the `DataContract` int
 * `setItems` - Persists a list of items.
 * `deleteItem` - Deletes a single item.
 
-The primary class the rest of your app will encounter is the `Repository`, which typically defines handlers for all
-of the above methods, but may decide to define only a subset if appropriate for a given use case.
+The primary class the rest of your app will encounter is the `Repository`, which typically defines handlers for all of the above methods, but may decide to define only a subset if appropriate for a given use case.
 
-Within a `Repository` is the all-important `SourceList`, which manages juggling data between an arbitrary list of
-`Source` objects. The `SourceList` class is the core of `pkg:data_layer`. You should not need to subclass or alter its
-behavior, as any special behavior should be coded into the `Repository` or `Source` layers.
+Within a `Repository` is the all-important `SourceList`, which manages juggling data between an arbitrary list of `Source` objects. The `SourceList` class is the core of `pkg:data_layer`. You should not need to subclass or alter its behavior, as any special behavior should be coded into the `Repository` or `Source` layers.
 
-`Source` objects are the primary means of loading and persisting data. `Source` objects can either be `.local` or
-`.remote`, which designates whether the data is loaded from a local cache or a remote server, respectively.
+Understanding the `SourceList` is key to understanding `pkg:data_layer`. See the [detailed description of the `SourceList`](#understanding-the-sourcelist) below.
+
+`Source` objects are the primary means of loading and persisting data. `Source` objects can either be `.local` or `.remote`, which designates whether the data is loaded from a local cache or a remote server, respectively.
 
 # Index
 
@@ -40,6 +36,8 @@ behavior, as any special behavior should be coded into the `Repository` or `Sour
 - [Features](#features)
 - [Getting started](#getting-started)
 - [Creating a Repository](#creating-a-repository)
+- [Instantiating a Repository](#instantiating-a-repository)
+- [Understanding the SourceList](#understanding-the-sourcelist)
 - [Defining data bindings](#defining-data-bindings)
 - [Loading data](#loading-data)
 - [Filtering data](#filtering-data)
@@ -67,7 +65,7 @@ Add the following to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  data_layer: ^0.0.1-beta.2
+  data_layer: ^0.0.1-beta.4
 ```
 
 ## Creating a Repository
@@ -80,7 +78,85 @@ class UserRepository extends Repository<User> {
 }
 ```
 
-The `Repository` base class provides default implementations for `getById`, `getByIds`, `getItems`, `setItem`, `setItems`, and `delete`. You can override these methods to add domain-specific logic, but often the default implementation is sufficient.
+The `Repository` base class provides default implementations for `getById`, `getByIds`, `getItems`, `setItem`, `setItems`, and `delete`. You can override these methods to add domain-specific logic, but often the default implementation which immediately delegates to its `SourceList` is sufficient.
+
+## Instantiating a Repository
+
+Instantiating a `Repository` usually amounts to instantiating a `SourceList` object. Most objects need to be passed the data type in question's `Bindings` definition.
+
+```dart
+final userRepository = UserRepository(
+  SourceList<User>(
+    bindings: userBindings,
+    sources: [
+      LocalSource<User>(bindings: userBindings),
+      ApiSource<User>(
+        bindings: userBindings,
+        restClient: restClient,
+      ),
+    ],
+  ),
+);
+```
+
+You should always put more local, more immediate sources first, as they will be read first.
+
+## Understanding the SourceList
+
+The `SourceList` class is a request-based read-thru cache whose behavior is best explained by example.
+
+Consider an empty `SourceList` with a single `LocalSource` and a single `ApiSource`. Your first action may be to read data, like so:
+
+```dart
+final users = await userRepository.getItems();
+```
+
+First, the `SourceList` will attempt to read data from its local sources. If no data is found, it will then attempt to read data from its remote sources. If data is found in a remote `Source`, it will be written to the local `Source`.
+
+Critically, this cached data is tied to the exact request that made yielded it. If you make a different request like below, the local `Source` will not have a cache hit and the `SourceList` will once again continue on to its remote `Source`.
+
+```dart
+/// Not a cache hit - will once again request data from the server
+final activeUsers = await userRepository.getItems(
+  RequestDetails(filter: ActiveUsersFilter(), pagination: Pagination.page(1)),
+);
+```
+
+At this point, repeating either of the previous function calls will yield cache hits from the local `Source`.
+
+Next, you may want to write data, like so:
+
+```dart
+final savedUser = await userRepository.setItem(User(name: 'John Doe'));
+```
+
+The `SourceList` will detect a missing `id` value and will immediately write this value to the server for `id` generation. At which point, the returned value will be saved to the local `Source` and returned to the caller. Assuming the server generated an `id` of `abc`, the following call would yield a cache hit and not request the data from the server:
+
+```dart
+final johnDoe = await userRepository.getById('abc');
+```
+
+However, local sources are request-based and cannot know which requests would yield this new John Doe user. As such, right now the only way to read that user from the local `Source` is to either request it by its Id like above, or to load all locally available users by using `RequestType.allLocal`:
+
+```dart
+/// Will contain the "John Doe" user
+final allUsers = await userRepository.getItems(RequestDetails(requestType: .allLocal));
+```
+
+Saving data like this may cause you to distrust your request-based caches, as that new user may appear in future requests,but if so, is not yet included in the cached results for those requests if previously submitted. Any time you want to force a request to go to the server, you should use `RequestType.refresh`.
+
+```dart
+/// Will go to the server first and then write any returned records back to local
+/// sources, leading to "John Doe"'s inclusion in this request's cache if the
+/// server returns it in its response.
+final activeUsers = await userRepository.getItems(
+  RequestDetails(
+    filter: ActiveUsersFilter(),
+    pagination: Pagination.page(1),
+    requestType: RequestType.refresh,
+  ),
+);
+```
 
 ## Defining data bindings
 
@@ -111,7 +187,8 @@ Data is loaded using the standard methods on your `Repository`:
 
 - `getById(String id)`: Fetches a single item.
 - `getByIds(Set<String> ids)`: Fetches multiple items by ID.
-- `getItems([RequestDetails? details])`: Fetches a list of items, optionally filtered or paginated.
+- `getItems({RequestDetails? details, bool allLocal = false})`: Fetches a list of items, optionally filtered or paginated.
+   If `allLocal` is true, all local data is returned regardless of any request-caching information.
 
 You can customize the request using `RequestDetails`:
 
@@ -129,6 +206,7 @@ Other `RequestType` values are:
 
 - `.refresh`: Bypasses local sources and only considers remote sources.
 - `.local`: Only considers local sources.
+- `.allLocal`: Returns all local data regardless of any request-caching information.
 
 ## Filtering data
 

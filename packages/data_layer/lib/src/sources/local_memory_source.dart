@@ -7,7 +7,7 @@ import 'package:logging/logging.dart';
 /// {@endtemplate}
 class LocalMemorySource<T> extends LocalSource<T> {
   /// {@macro LocalMemorySource}
-  LocalMemorySource({super.bindings, super.idBuilder, IdReader<T>? getId})
+  LocalMemorySource({super.bindings, IdReader<T>? getId})
     : assert(
         bindings != null || getId != null,
         'You must provide either a Bindings object or an IdReader to the getId '

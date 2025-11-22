@@ -93,15 +93,10 @@ class LocalSource<T> extends Source<T> {
   LocalSource(
     this._itemsPersistence,
     this._requestCachePersistence, {
-    this.idBuilder,
     super.bindings,
   });
 
   final _log = Logger('$LocalSource<$T>');
-
-  /// Function to assign fresh Ids to new records. Only use very intentionally,
-  /// as this task is typically best completed by a server.
-  final IdBuilder<T>? idBuilder;
 
   /// Warehouse for all known instances of [T].
   final LocalSourceItemsPersistence<T> _itemsPersistence;
@@ -292,17 +287,16 @@ class LocalSource<T> extends Source<T> {
     return ReadListResult.fromList(items, details, <String>{}, bindings.getId);
   }
 
-  T _generateId(T item) => bindings.fromJson(
-    bindings.toJson(item)..update('id', (value) => idBuilder!.call(item)),
-  );
+  T _generateId(T item) => (bindings as CreationBindings<T>).save(item);
 
   @override
   Future<WriteResult<T>> setItem(T item, RequestDetails details) async {
     var itemCopy = item;
     if (bindings.getId(itemCopy) == null) {
-      if (idBuilder == null) {
+      if (bindings is! CreationBindings<T>) {
         _log.shout(
-          'Failed to set Id to unsaved $itemCopy because idBuilder was null',
+          'Failed to set Id to unsaved $itemCopy because Bindings was not a '
+          'CreationBindings',
         );
         return WriteFailure<T>(FailureReason.badRequest, 'Could not save item');
       } else {

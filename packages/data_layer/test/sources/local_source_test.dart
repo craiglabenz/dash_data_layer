@@ -43,7 +43,6 @@ void main() {
       );
       idSettingMem = LocalMemorySource<TestModel>(
         bindings: TestModel.bindings,
-        idBuilder: (item) => 'new',
       );
     });
 

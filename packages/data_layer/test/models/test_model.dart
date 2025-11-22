@@ -15,6 +15,11 @@ class TestModel {
     msg: json['msg'] as String,
   );
 
+  TestModel copyWith({String? id, String? msg}) => TestModel(
+    id: id ?? this.id,
+    msg: msg ?? this.msg,
+  );
+
   final String? id;
   final String msg;
 
@@ -38,12 +43,13 @@ class TestModel {
   @override
   String toString() => 'TestModel(id: $id, msg: $msg)';
 
-  static final bindings = Bindings<TestModel>(
+  static final bindings = CreationBindings<TestModel>(
     fromJson: TestModel.fromJson,
     getDetailUrl: (id) => ApiUrl(path: 'test/$id'),
     getListUrl: () => const ApiUrl(path: 'test/'),
     toJson: (TestModel obj) => obj.toJson(),
     getId: (TestModel obj) => obj.id,
+    save: (TestModel obj) => obj.copyWith(id: 'new'),
   );
 }
 
