@@ -227,6 +227,27 @@ it executes.
 
 Filters and pagination can be used together.
 
+### Local evaluation of filters
+
+This never happens. Filters are never applied to local data due to the risk of false-positives. If you make a filtered request to the server, any local `Source` objects will cache those records as belonging to those requests. However, if you happen to have cached a few records which match a given filter, local evaluation of the filter would very likely not result in expected behavior. Consider the following:
+
+```dart
+/// Saves this new user to the server and caches it locally *by its Id*.
+final newUser = await UserRepository.setItem(User(isActive: true));
+
+/// Loads active users from the repository.
+///
+/// Critically, this will not get a cache hit because the `newUser` object above, because this request has never
+/// been made before and thus no local cache exists for it. This is important because you have no way of knowing
+/// how many other active users exist which the server would return when asked.
+///
+/// Thus, the `SourceList` powering this repository will send the request to the server, which will return active users
+/// as per your business logic rules. Of course, consider including pagination to limit the number of records returned.
+///
+/// This represents why caching is request-based and why filters are never evaluated locally.
+final activeUsers = await userRepository.getItems(RequestDetails(filter: ActiveUsersFilter()));
+```
+
 ## Pagination
 
 Similar to filtering, pagination is handled by the `ApiSource` and is applied to the request in `getItems`.
