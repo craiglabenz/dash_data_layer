@@ -3,16 +3,18 @@ import 'package:data_layer/data_layer.dart';
 /// Classifier for a data request which tells a subtype of [DataContract] where
 /// to look for the desired data.
 enum RequestType {
-  /// Indicator for requests which should not leave the application - aka, cache
-  /// reads.
+  /// Requests which should read all locally available records and not consider
+  /// request caches.
+  allLocal,
+
+  /// Requests which should not leave the application - aka, cache reads.
   local,
 
-  /// Indicator for requests which must leave the application - aka, cache
-  /// refreshes.
+  /// Requests which must leave the application - aka, cache refreshes.
   refresh,
 
-  /// Indicator for requests which can look anywhere and should accept the first
-  /// data they find. This is typically the default [RequestType].
+  /// Requests which can look anywhere and should accept the first data they
+  /// find. This is typically the default [RequestType].
   global
   ;
 
@@ -20,7 +22,9 @@ enum RequestType {
   bool includes(SourceType sourceType) {
     return sourceType.map<bool>(
       local: (SourceType sourceType) =>
-          this == RequestType.local || this == RequestType.global,
+          this == RequestType.local ||
+          this == RequestType.allLocal ||
+          this == RequestType.global,
       remote: (SourceType sourceType) =>
           this == RequestType.refresh || this == RequestType.global,
     );

@@ -71,6 +71,9 @@ abstract class LocalSourceItemsPersistence<T> {
   /// an empty iterable.
   Future<Iterable<T>> getByIds(Set<String> ids);
 
+  /// Loads all known instances of [T].
+  Future<Iterable<T>> getAll();
+
   /// Persists an instance of [T].
   Future<void> setItem(T item, {required bool shouldOverwrite});
 
@@ -253,6 +256,16 @@ class LocalSource<T> extends Source<T> {
   @override
   Future<ReadListResult<T>> getItems(RequestDetails details) async {
     Set<String>? ids;
+    if (details.requestType == .allLocal) {
+      final allItems = await _itemsPersistence.getAll();
+      return ReadListResult.fromList(
+        allItems,
+        details,
+        <String>{},
+        bindings.getId,
+      );
+    }
+
     if (details.pagination == null) {
       ids = await _requestCachePersistence.getCacheKey(details.cacheKey);
       _log.finest('Getting items for ${details.cacheKey}. Found Ids $ids');

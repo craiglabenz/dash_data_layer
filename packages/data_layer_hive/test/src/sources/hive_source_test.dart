@@ -246,8 +246,8 @@ void main() {
     });
 
     test('setCacheKey and getCacheKey', () async {
-      final key = 'test_key';
-      final ids = {'id1', 'id2'};
+      const key = 'test_key';
+      const ids = {'id1', 'id2'};
 
       when(
         () => mockIdsBox.put(key, ids),
@@ -262,10 +262,10 @@ void main() {
     });
 
     test('setPaginatedCacheKey and getPaginatedCacheKey', () async {
-      final noPaginationKey = 'no_page_key';
-      final cacheKey = 'page_1_key';
-      final ids = {'id1', 'id2'};
-      final pagesMetadata = <String, Set<String>>{cacheKey: ids};
+      const noPaginationKey = 'no_page_key';
+      const cacheKey = 'page_1_key';
+      const ids = {'id1', 'id2'};
+      const pagesMetadata = <String, Set<String>>{cacheKey: ids};
 
       when(() => mockPaginationCacheBox.get(noPaginationKey)).thenReturn(null);
       when(
@@ -293,7 +293,7 @@ void main() {
     });
 
     test('clearCacheKey', () async {
-      final key = 'test_key';
+      const key = 'test_key';
       when(
         () => mockIdsBox.delete(key),
       ).thenAnswer((_) => Future.value());
@@ -303,7 +303,7 @@ void main() {
     });
 
     test('clearPaginatedCacheKey', () async {
-      final noPaginationKey = 'no_page_key';
+      const noPaginationKey = 'no_page_key';
       when(
         () => mockPaginationCacheBox.delete(noPaginationKey),
       ).thenAnswer((_) => Future.value());

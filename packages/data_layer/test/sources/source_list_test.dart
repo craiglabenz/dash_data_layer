@@ -27,16 +27,16 @@ final fred = TestModel.fromJson(jsonDecode(detailResponseBody) as Json);
 final flintstone = TestModel.fromJson(jsonDecode(detailResponseBody2) as Json);
 
 final details = RequestDetails();
-final localDetails = RequestDetails(requestType: RequestType.local);
+final localDetails = RequestDetails(requestType: .local);
 final refreshDetails = RequestDetails(
-  requestType: RequestType.refresh,
+  requestType: .refresh,
 );
 final abcDetails = RequestDetails(
   filter: const MsgStartsWithFilter('abc'),
 );
 final localAbcDetails = RequestDetails(
   filter: const MsgStartsWithFilter('abc'),
-  requestType: RequestType.local,
+  requestType: .local,
 );
 
 RequestDelegate getRequestDelegate(
@@ -699,6 +699,21 @@ void main() {
         () => sl.setItems([newObj], refreshDetails),
         throwsA(isA<AssertionError>()),
       );
+    });
+  });
+
+  group('SourceList should', () {
+    test('be able to read all data', () async {
+      final sl = getSourceList(delegate200);
+      await sl.setItem(fred, localDetails);
+      await sl.setItems([flintstone], localDetails);
+      final readResult = await sl.getItems(
+        RequestDetails(requestType: .allLocal),
+      );
+      final items = readResult.getOrRaise().items;
+      expect(items.length, equals(2));
+      expect(items, contains(fred));
+      expect(items, contains(flintstone));
     });
   });
 }

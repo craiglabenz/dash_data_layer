@@ -58,8 +58,23 @@ class Repository<T> {
 
   /// Loads all items that match the given request [details], or the default
   /// [RequestDetails.read] object if not given.
-  Future<List<T>> getItems([RequestDetails? details]) async {
-    final result = await sourceList.getItems(details ?? RequestDetails.read());
+  ///
+  /// If [allLocal] is set to true, then [details] must be null or have a
+  /// [RequestType] of [RequestType.local]. This will also return all available
+  /// data from local sources, independent of any request-based caching.
+  Future<List<T>> getItems({
+    bool allLocal = false,
+    RequestDetails? details,
+  }) async {
+    assert(
+      !allLocal || (details == null || details.requestType == .allLocal),
+      'allLocal is true but details is not null and not allLocal',
+    );
+    details ??= RequestDetails.read(
+      requestType: allLocal ? .allLocal : RequestDetails.defaultRequestType,
+    );
+
+    final result = await sourceList.getItems(details);
     switch (result) {
       case ReadListSuccess<T>():
         return result.itemsOrRaise();

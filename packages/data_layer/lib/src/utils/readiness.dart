@@ -119,7 +119,7 @@ mixin ReadinessMixin<T> {
   /// A common use case to call this method is for anything that marks itself
   /// ready once a user session is established; after that user logs out.
   void resetReadiness() {
-    _log.fine('Resetting readiness for $this');
+    _log.finest('Resetting readiness for $this');
     _readinessCompleter = Completer<T>();
     _hasCalledInitialize = false;
     status = Readiness.loading;
@@ -133,7 +133,7 @@ mixin ReadinessMixin<T> {
         'Call resetReadiness() if you intended to do this.',
       );
     }
-    _log.fine('Marking $this as ready with $obj');
+    _log.finest('Marking $this as ready with $obj');
     status = Readiness.ready;
     _readinessCompleter.complete(obj);
   }

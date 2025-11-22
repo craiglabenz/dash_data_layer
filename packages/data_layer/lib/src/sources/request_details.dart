@@ -150,6 +150,7 @@ class RequestDetails extends Equatable {
   /// True if this request would rather return empty data than go off-device.
   bool get isLocal => switch (requestType) {
     RequestType.local => true,
+    RequestType.allLocal => true,
     RequestType.refresh => false,
     RequestType.global => false,
   };

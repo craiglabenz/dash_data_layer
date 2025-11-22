@@ -1,4 +1,5 @@
 import 'package:data_layer/data_layer.dart';
+import 'package:logging/logging.dart';
 
 /// {@template LocalMemorySource}
 /// On-device, in-memory store which caches previously loaded data for
@@ -31,6 +32,8 @@ class InMemoryItemsPersistence<T> extends LocalSourceItemsPersistence<T> {
 
   final _items = <String, T>{};
 
+  final _log = Logger('$InMemoryItemsPersistence<$T>');
+
   @override
   Future<void> clear() async => _items.clear();
 
@@ -38,27 +41,42 @@ class InMemoryItemsPersistence<T> extends LocalSourceItemsPersistence<T> {
   Future<T?> getById(String id) async => _items[id];
 
   @override
-  Future<Iterable<T>> getByIds(Set<String> ids) async =>
-      ids.map<T?>((id) => _items[id]).where((T? obj) => obj != null).cast<T>();
+  Future<Iterable<T>> getByIds(Set<String> ids) async {
+    _log.finest('Getting $ids');
+    return ids
+        .map<T?>((id) => _items[id])
+        .where((T? obj) => obj != null)
+        .cast<T>();
+  }
 
   @override
-  Future<void> setItem(T item, {required bool shouldOverwrite}) async =>
-      shouldOverwrite || !_items.containsKey(getId(item))
-      ? _items[getId(item)!] = item
-      : null;
+  Future<Iterable<T>> getAll() => Future.value(_items.values);
+
+  @override
+  Future<void> setItem(T item, {required bool shouldOverwrite}) async {
+    if (shouldOverwrite || !_items.containsKey(getId(item))) {
+      _log.finest('Setting $item');
+      _items[getId(item)!] = item;
+    }
+  }
 
   @override
   Future<void> setItems(
     Iterable<T> items, {
     required bool shouldOverwrite,
-  }) async =>
-      // ignore: avoid_function_literals_in_foreach_calls
-      items.forEach(
-        (item) => setItem(item, shouldOverwrite: shouldOverwrite),
-      );
+  }) async {
+    _log.finest('Setting $items');
+    // ignore: avoid_function_literals_in_foreach_calls
+    items.forEach(
+      (item) => setItem(item, shouldOverwrite: shouldOverwrite),
+    );
+  }
 
   @override
-  Future<void> deleteIds(Set<String> ids) async => ids.forEach(_items.remove);
+  Future<void> deleteIds(Set<String> ids) async {
+    _log.finest('Deleting $ids');
+    ids.forEach(_items.remove);
+  }
 }
 
 /// In memory storage for caching metadata of a [LocalSource] object. Naturally,

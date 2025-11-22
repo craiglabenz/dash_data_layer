@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:data_layer/data_layer.dart';
-// TODO: Export this from data_layer
-import 'package:data_layer/src/utils/readiness.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:logging/logging.dart';
 
@@ -91,7 +89,6 @@ class HiveItemsPersistence<T> extends LocalSourceItemsPersistence<T>
   final Future<void> hiveInit;
 
   final HiveInterface _hive;
-  late final Box<T> _itemsBox;
 
   @override
   Future<void> performInitialization() async {
@@ -99,24 +96,39 @@ class HiveItemsPersistence<T> extends LocalSourceItemsPersistence<T>
     _itemsBox = await _hive.openBox<T>('${name}_items');
   }
 
+  /// Opened Hive box.
+  ///
+  /// This box maps Ids to actual payloads for the given records.
+  Future<Box<T>> get itemsBox async {
+    await ready;
+    return _itemsBox;
+  }
+
+  late final Box<T> _itemsBox;
+
   @override
   Future<void> clear() => _itemsBox.clear();
 
   @override
-  Future<void> deleteIds(Set<String> ids) => _itemsBox.deleteAll(ids);
+  Future<void> deleteIds(Set<String> ids) async =>
+      (await itemsBox).deleteAll(ids);
 
   @override
-  Future<T?> getById(String id) async => _itemsBox.get(id);
+  Future<T?> getById(String id) async => (await itemsBox).get(id);
 
   @override
   Future<Iterable<T>> getByIds(Set<String> ids) async {
+    final box = await itemsBox;
     final results = <T>[];
     for (final id in ids) {
-      final item = _itemsBox.get(id);
+      final item = box.get(id);
       if (item != null) results.add(item);
     }
     return results;
   }
+
+  @override
+  Future<Iterable<T>> getAll() async => (await itemsBox).values;
 
   @override
   Future<void> setItem(T item, {required bool shouldOverwrite}) async {
@@ -125,7 +137,7 @@ class HiveItemsPersistence<T> extends LocalSourceItemsPersistence<T>
       'Checking for null Id in Hive box - unsafe!',
     );
     if (shouldOverwrite || _itemsBox.get(getId(item)) == null) {
-      await _itemsBox.put(getId(item), item);
+      await (await itemsBox).put(getId(item), item);
     }
   }
 
@@ -158,11 +170,6 @@ class HiveCachePersistence extends RequestCachePersistence
   final Future<void> hiveInit;
 
   final HiveInterface _hive;
-  late final Box<Set<String>> _requestCacheBox;
-
-  // Cannot pre-type Maps with Hive
-  // ignore: strict_raw_type
-  late final Box<Map> _paginationCacheBox;
 
   late final Logger _log;
 
@@ -177,27 +184,54 @@ class HiveCachePersistence extends RequestCachePersistence
     );
   }
 
+  /// Opened RequestCacheBox.
+  ///
+  /// This box maps [RequestDetails.cacheKey] values to the sets of
+  /// Ids that were returned by the server.
+  Future<Box<Set<String>>> get requestCacheBox async {
+    await ready;
+    return _requestCacheBox;
+  }
+
+  late final Box<Set<String>> _requestCacheBox;
+
+  /// Opened PaginationRequestCacheBox.
+  ///
+  /// This box maps [RequestDetails.noPaginationCacheKey] values all of the
+  /// paged data returned by the server. The inner map stores
+  /// [RequestDetails.cacheKey] values as keys (each of which indicates a page),
+  /// and sets of Ids returned in each page as values.
+  // ignore: strict_raw_type
+  Future<Box<Map>> get paginationCacheBox async {
+    await ready;
+    return _paginationCacheBox;
+  }
+
+  // Cannot pre-type Maps with Hive
+  // ignore: strict_raw_type
+  late final Box<Map> _paginationCacheBox;
+
   @override
   Future<void> clear() async {
-    assert(
-      isReady,
-      'Must complete initialization before calling HiveCachePersistence.clear',
-    );
-    await _requestCacheBox.clear();
-    await _paginationCacheBox.clear();
+    await ready;
+    await Future.wait<void>([
+      _requestCacheBox.clear(),
+      _paginationCacheBox.clear(),
+    ]);
   }
 
   @override
-  Future<void> clearCacheKey(CacheKey key) => _requestCacheBox.delete(key);
+  Future<void> clearCacheKey(CacheKey key) async =>
+      (await requestCacheBox).delete(key);
 
   @override
   Future<void> clearPaginatedCacheKey({
     required CacheKey noPaginationCacheKey,
-  }) => _paginationCacheBox.delete(noPaginationCacheKey);
+  }) async => (await paginationCacheBox).delete(noPaginationCacheKey);
 
   @override
   Future<Set<String>?> getCacheKey(CacheKey key) async {
-    final result = _requestCacheBox.get(key);
+    final result = (await requestCacheBox).get(key);
     _log.finest('Loading $key - found $result');
     return result;
   }
@@ -207,7 +241,7 @@ class HiveCachePersistence extends RequestCachePersistence
     required CacheKey noPaginationCacheKey,
     required CacheKey cacheKey,
   }) async {
-    final pagesMetadata = _paginationCacheBox
+    final pagesMetadata = (await paginationCacheBox)
         .get(noPaginationCacheKey)
         ?.cast<CacheKey, Set<String>>();
     _log.finest(
@@ -219,7 +253,7 @@ class HiveCachePersistence extends RequestCachePersistence
   @override
   Future<void> setCacheKey(CacheKey key, Set<String> ids) async {
     _log.finest('Writing $ids to $key');
-    await _requestCacheBox.put(key, ids);
+    await (await requestCacheBox).put(key, ids);
   }
 
   @override
@@ -230,27 +264,27 @@ class HiveCachePersistence extends RequestCachePersistence
   }) async {
     _log.finest('Writing $ids to $noPaginationCacheKey::$cacheKey');
     final pagesMetadata =
-        _paginationCacheBox.get(noPaginationCacheKey) ??
+        (await paginationCacheBox).get(noPaginationCacheKey) ??
         <CacheKey, Set<String>>{};
 
     pagesMetadata[cacheKey] = ids;
-    await _paginationCacheBox.put(noPaginationCacheKey, pagesMetadata);
+    await (await paginationCacheBox).put(noPaginationCacheKey, pagesMetadata);
   }
 
   @override
   Future<Iterable<CacheKey>> getRequestCacheKeys() async =>
-      _requestCacheBox.keys.cast<CacheKey>();
+      (await requestCacheBox).keys.cast<CacheKey>();
 
   @override
   Future<Iterable<CacheKey>> noPaginationCacheKeys() async =>
-      _paginationCacheBox.keys.cast<CacheKey>();
+      (await paginationCacheBox).keys.cast<CacheKey>();
 
   @override
   Future<Iterable<CacheKey>> noPaginationInnerKeys(
     CacheKey noPaginationCacheKey,
   ) async {
     final innerMap =
-        _paginationCacheBox.get(noPaginationCacheKey) ??
+        (await paginationCacheBox).get(noPaginationCacheKey) ??
         <CacheKey, Set<String>>{};
     return innerMap.keys.cast<CacheKey>();
   }
