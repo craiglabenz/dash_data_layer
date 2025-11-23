@@ -6,7 +6,9 @@ Pure Dart package for isolating data layer abstractions from the rest of your ap
 
 # Motivation
 
-Correctly managing data is one of the most important parts of any app. Always loading data from the server every time you need it is easy, but not performant or offline-friendly. That suggests caching data; but as cache invalidation is one of the 3 hard problems in computer science, *there be dragons*.
+Correctly managing data is one of the most important parts of any app and failure to separate it from state management plays a significant role in complicating one's codebase.
+
+Furthe, naive approaches like always loading data from the server every time you need it is easy, but not performant or offline-friendly. This suggests *caching* data; but as cache invalidation is one of the three hard problems in computer science, *there be dragons*.
 
 `pkg:data_layer` aims to provide a simple, yet powerful, way to manage data in your app.
 
@@ -16,12 +18,12 @@ Everything in `pkg:data_layer` resolves around satisfying the `DataContract` int
 
 * `getById` - Retrieves a single item by its Id. Does not support filters or pagination.
 * `getByIds` - Retrieves a list of items by their Ids. Does not support filters or pagination.
-* `getItems` - Retrieves a list of items, optionally filtered or paginated.
+* `getItems` - Retrieves a list of items. Pagination is recommended and filters are (of course) optional.
 * `setItem` - Persists a single item.
 * `setItems` - Persists a list of items.
 * `deleteItem` - Deletes a single item.
 
-The primary class the rest of your app will encounter is the `Repository`, which typically defines handlers for all of the above methods, but may decide to define only a subset if appropriate for a given use case.
+The primary class from `pkg:data_layer` which the rest of your app will encounter is `Repository`, which defaults to defining handlers for all of the above methods, but may decide to define only a subset if appropriate for a given use case. (For example, a read-only data endpoint may throw `UnimplementedError` exceptions for `setItem`, `setItems`, and `deleteItem`.)
 
 Within a `Repository` is the all-important `SourceList`, which manages juggling data between an arbitrary list of `Source` objects. The `SourceList` class is the core of `pkg:data_layer`. You should not need to subclass or alter its behavior, as any special behavior should be coded into the `Repository` or `Source` layers.
 
@@ -35,6 +37,7 @@ Understanding the `SourceList` is key to understanding `pkg:data_layer`. See the
 - [Architecture](#architecture)
 - [Features](#features)
 - [Getting started](#getting-started)
+- [Data layer principles](#data-layer-principles)
 - [Creating a Repository](#creating-a-repository)
 - [Instantiating a Repository](#instantiating-a-repository)
 - [Understanding the SourceList](#understanding-the-sourcelist)
@@ -57,7 +60,7 @@ Understanding the `SourceList` is key to understanding `pkg:data_layer`. See the
 - Canonical REST client to power those API data sources
 - Write-thru caching of loaded data
 - Deterministic invalidation of cached data
-- Extensibility to work with any data source, including Hive, SQLite, ServerPod, etc.
+- Extensibility to work with any data source, including Hive, SQLite, ServerPod, Firebase, etc.
 
 ## Getting started
 
@@ -67,6 +70,22 @@ Add the following to your `pubspec.yaml`:
 dependencies:
   data_layer: ^0.0.1-beta.4
 ```
+
+## Data layer principles
+
+The following principles are for most data layers across most apps, not just apps using this package.
+
+### Data layer objects should PROBABLY be singletons
+
+If you have a `Repository` which loads and caches `User` objects, it should probably exist for the entire life of your app and should never be duplicated. Blocs or Providers come and go with the lifecycle of the screen they power, but data layer objects can often power many different screens and should not be disposed of.
+
+### Data layer objects should COMPLETELY OWN their data type
+
+Once you initialize a `Repository` for a single data type, that should be the preferred way of loading those records across your entire app. If, in some instances, you need an altered form of that data and cannot use your first `Repository`, you should create a new `Repository` for that altered form of the data.
+
+For example, imagine you have a very large data structure which is partially loaded on a list view and then only fully loaded on a detail view after a user selects one of your objects. You should consider having two repositories, `ListObjectRepository` and `DetailMyObjectRepository`, each with their own `SourceList` and sources.
+
+You should NOT create two different `UserRepository` objects simply because two areas of your app load different sets of users. Instead, lean on the `SourceList`'s request-based caching mechanisms to handle the filtering and pagination of your data from a single `UserRepository`.
 
 ## Creating a Repository
 
@@ -105,7 +124,51 @@ You should always put more local, more immediate sources first, as they will be 
 
 The `SourceList` class is a request-based read-thru cache whose behavior is best explained by example.
 
-Consider an empty `SourceList` with a single `LocalSource` and a single `ApiSource`. Your first action may be to read data, like so:
+The `SourceList` exists to juggle caching the responses from remote sources into the storage mechanism of local sources. As such, the general shape of a SourceList is as follows:
+
+```dart
+  SourceList(
+    ...
+    sources: [
+      MyLocalSource(), // In-memory, Hive, or similar
+      MyRemoteSource(), // RESTful API, Serverpod, Firebase, Supabase, etc
+    ],
+  )
+```
+
+It is possible to have more than one local source, but the most immediate sources must always be listed first. For example, the following definition is good:
+
+```dart
+SourceList(
+    ...
+    sources: [
+      InMemoryLocalSource(),
+      HiveSource(),
+      ApiSource(),
+    ],
+  )
+```
+
+Whereas the following definition is wasteful:
+
+```dart
+SourceList(
+    ...
+    sources: [
+      // Placing the HiveSource before the InMemorySource means the InMemorySource
+      // will never be meaningfully read and should be deleted.
+      HiveSource(),
+      // This Source will have records cached to it, but all reads will be satisfied
+      // by the HiveSource first, so that cache will be pure bloat.
+      InMemoryLocalSource(),
+      ApiSource(),
+    ],
+  )
+```
+
+Multiple local sources are only useful if one is durable for true offline caching, like sqlite3 or Hive, but deemed not fast enough for immediate reads. In general, this is probably not the case and you should consider using a single local source first.
+
+Consider an empty `SourceList` with a single in memory local`Source` and a single RESTful API-powered remote `Source`, like the above. Your first action may be to read data, like so:
 
 ```dart
 final users = await userRepository.getItems();
@@ -140,10 +203,14 @@ However, local sources are request-based and cannot know which requests would yi
 
 ```dart
 /// Will contain the "John Doe" user
-final allUsers = await userRepository.getItems(RequestDetails(requestType: .allLocal));
+final allUsers = await userRepository.getItems(
+  RequestDetails(requestType: .allLocal),
+);
 ```
 
-Saving data like this may cause you to distrust your request-based caches, as that new user may appear in future requests,but if so, is not yet included in the cached results for those requests if previously submitted. Any time you want to force a request to go to the server, you should use `RequestType.refresh`.
+Saving data like this may cause you to distrust your request-based caches, as that new user would possibly appear in future requests sent to the server. However, if those requests were previously submitted and are cached, your newly written records are not yet included in any request-based caches. Thus, any time you want to force a request to go to the server, you should use `RequestType.refresh`.
+
+It is the job of your state management solution to track this and determine which `RequestType` to use at a given moment.
 
 ```dart
 /// Will go to the server first and then write any returned records back to local
@@ -237,14 +304,18 @@ final newUser = await UserRepository.setItem(User(isActive: true));
 
 /// Loads active users from the repository.
 ///
-/// Critically, this will not get a cache hit because the `newUser` object above, because this request has never
-/// been made before and thus no local cache exists for it. This is important because you have no way of knowing
-/// how many other active users exist which the server would return when asked.
+/// Critically, the `newUser` object above will not lead to a cache hit, because
+/// this request has never been made before and thus no local cache exists for
+/// it. This is important because you have no way of knowing how many other
+/// active users exist which the server would return when asked.
 ///
-/// Thus, the `SourceList` powering this repository will send the request to the server, which will return active users
-/// as per your business logic rules. Of course, consider including pagination to limit the number of records returned.
+/// Thus, the `SourceList` powering this repository will send the following
+/// request to the server, which will return active users as per your business
+/// logic rules. Of course, consider including pagination to limit the number of
+///records returned.
 ///
-/// This represents why caching is request-based and why filters are never evaluated locally.
+/// This represents why caching is request-based and why filters are never
+/// evaluated locally.
 final activeUsers = await userRepository.getItems(RequestDetails(filter: ActiveUsersFilter()));
 ```
 
@@ -269,17 +340,13 @@ Filters and pagination can be used together.
 
 ## Managing cached data
 
-`pkg:data_layer` automatically caches data in local sources when it is fetched from remote sources. This "write-through"
-caching strategy ensures that subsequent requests can be served locally if possible.
+`pkg:data_layer` automatically caches data in local sources when it is fetched from remote sources. This "write-through" caching strategy ensures that subsequent requests can be served locally if possible.
 
-`pkg:data_layer`'s caching strategy consists of two layers to keep requests separate without duplicating the full volume
-of cached records. The first layer is a map of request hashes to the IDs of the records returned by that request. The second
-layer is a map of IDs to the actual records. The request hashing strategy is based on the `RequestDetails` object
-passed to `getItems` and uses `md5` instead of typical Dart `hashCodes`, as the latter are unreliable from one execution
-of your application to the next and would lead to cache misses.
+`pkg:data_layer`'s caching strategy consists of two layers to keep requests separate without duplicating the full volume of cached records. The first layer is a map of request hashes to the IDs of the records returned by that request. The second layer is a map of IDs to the actual records. The request hashing strategy is based on the `RequestDetails` object passed to `getItems` and uses `md5` instead of typical Dart `hashCodes`, as the latter are unreliable from one execution of your application to the next and would lead to cache misses.
 
-The fields included in this critical `md5` hash are only `filters` and `pagination`. See more in [Forcing cache misses](#forcing-cache-misses)
-for the implications of this behavior.
+This two-layer caching strategy means that two requests which return the same set of records will not cache those shared records twice, but will instead each store pointers to their payloads.
+
+The `RequestDetails` fields included in this critical `md5` hash are only `filters` and `pagination`. See more in [Forcing cache misses](#forcing-cache-misses) for the implications of this behavior.
 
 ### Reading cached data
 
@@ -370,29 +437,32 @@ To force a cache miss, use `.refresh` for the `RequestType` parameter.
 ```dart
 /// Loads all users created within the last 7 days
 final users = await userRepository.getItems(
-  RequestDetails(requestType: .refresh, filters: CreatedWithin(const Duration(days: 7))),
+  RequestDetails(
+    requestType: .refresh,
+    filters: CreatedWithin(const Duration(days: 7)),
+  ),
 );
 ```
 
-This will bypass any local sources, fetch data from remote sources, and then cache any returned
-results in local sources. These records will then be available as cache hits for future requests.
+This will bypass any local sources, fetch data from remote sources, and then cache any returned results in local sources. These records will then be available as cache hits for future requests.
 
-Later, if you want to read that same data from the cache, you can do so by not providing any
-`RequestDetails` object (or providing a `RequestDetails` object with a `requestType` value of `.global`).
+Any records previously cached against this request will not be deleted, but they will be dropped from the mapping for this specific request. This means that they will still be eligible for cache hits when you request those records by their Ids, but they will not be included in the results for this specific request again, made with the `.local` or `.global` request types.
 
 ```dart
 /// Will return the same users from the cache that were returned in the prior call
 final users = await userRepository.getItems(
-  RequestDetails(filters: CreatedWithin(const Duration(days: 7))),
+  // The default `RequestType` value is `.global`, which loads data from anywhere
+  RequestDetails(
+    filters: CreatedWithin(const Duration(days: 7)),
+  ),
 );
 ```
 
-If, upon app launch, you know you need to refresh this data again, simply use `.refresh` again when loading the data.
+If, upon app launch, you know you need to refresh this data again, use `.refresh` again when loading the data. It is the job of your state management solution to track when to use `.refresh`.
 
 ### Clearing cached data
 
-To clear local persistance caches, call `.clear` on the repository. For more fine-grained control, call this
-on individual `Source` objects.
+To clear local persistance caches, call `.clear` on the repository. For more fine-grained control, call this on individual `Source` objects.
 
 ```dart
 // Clear all local data for this repository
