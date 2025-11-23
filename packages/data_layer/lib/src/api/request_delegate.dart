@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:data_layer/api.dart';
+import 'package:data_layer/src/types.dart';
 import 'package:http/http.dart' as http;
 
 /// {@template UnexpectedRequest}
@@ -225,10 +226,13 @@ class RequestDelegate {
     if (rawResponseBody.isNotEmpty) {
       if (contentType != null) {
         if (contentType.contains('json')) {
-          if (rawResponseBody.startsWith('{') ||
-              rawResponseBody.startsWith('[')) {
+          if (rawResponseBody.startsWith('{')) {
             body = ApiResultBody.json(
-              jsonDecode(rawResponseBody) as Map<String, dynamic>,
+              (jsonDecode(rawResponseBody) as Map).cast<String, Object?>(),
+            );
+          } else if (rawResponseBody.startsWith('[')) {
+            body = ApiResultBody.json(
+              (jsonDecode(rawResponseBody) as List).cast<Json>(),
             );
           } else {
             body = ApiResultBody.plainText(rawResponseBody);
@@ -273,7 +277,14 @@ class RequestDelegate {
     // Error time!
     final errorMessage = switch (body!) {
       HtmlApiResultBody(:final html) => ErrorMessage.fromString(html),
-      JsonApiResultBody(:final data) => ErrorMessage.fromMap(data),
+      JsonApiResultBody(:final data) => switch (data) {
+        String() => ErrorMessage.fromString(data),
+        Map() => ErrorMessage.fromMap(data as Json),
+        List() => ErrorMessage.fromString('$data'),
+        _ => throw Exception(
+          'Unexpected data type in error response: ${data.runtimeType}',
+        ),
+      },
       PlainTextApiResultBody(:final text) => ErrorMessage.fromString(text),
     };
 

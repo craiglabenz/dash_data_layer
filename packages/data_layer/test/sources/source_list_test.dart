@@ -10,6 +10,7 @@ const _id = 'uuid';
 const _id2 = 'uuid2';
 const detailResponseBody = '{"id": "$_id", "msg": "Fred"}';
 const detailResponseBody2 = '{"id": "$_id2", "msg": "Flintstone"}';
+const listNoResultsKeyResponseBody = '[$detailResponseBody]';
 const listResponseBody = '{"results": [$detailResponseBody]}';
 const twoElementResponseBody =
     '{"results": [$detailResponseBody, $detailResponseBody2]}';
@@ -106,12 +107,14 @@ final RequestDelegate delegate404x2 = getRequestDelegate(
 RequestDelegate getEmptyDelegate() => getRequestDelegate([emptyResponseBody]);
 
 final RequestDelegate creatableDelegate = getRequestDelegate([
-  listResponseBody,
+  listNoResultsKeyResponseBody,
+], canCreate: true);
+final RequestDelegate detailStyleCreatableDelegate = getRequestDelegate([
+  detailResponseBody,
 ], canCreate: true);
 final RequestDelegate updateableDelegate = getRequestDelegate([
-  listResponseBody,
+  listNoResultsKeyResponseBody,
 ], canUpdate: true);
-
 SourceList<TestModel> getSourceList(RequestDelegate delegate) =>
     SourceList<TestModel>(
       sources: <Source<TestModel>>[
@@ -616,13 +619,22 @@ void main() {
         [fred, flintstone],
         [details, localMsgFredDetails, globalMsgFredDetails],
       );
-    });
+    }, timeout: const Timeout(Duration(milliseconds: 10)));
   });
 
   group('SourceList.setItem should', () {
     test('persist an item to all layers', () async {
       const newObj = TestModel(id: null, msg: 'new');
       final sl = getSourceList(creatableDelegate);
+      final writeResult = await sl.setItem(newObj, details);
+      expect(writeResult.getOrRaise().item, fred);
+      // Not cached because [setItem] cannot populate the cache
+      await hasNotCached(sl, [writeResult.getOrRaise().item], [details]);
+    });
+
+    test('persist an item to all layers from detail-style responses', () async {
+      const newObj = TestModel(id: null, msg: 'new');
+      final sl = getSourceList(detailStyleCreatableDelegate);
       final writeResult = await sl.setItem(newObj, details);
       expect(writeResult.getOrRaise().item, fred);
       // Not cached because [setItem] cannot populate the cache
@@ -650,21 +662,25 @@ void main() {
       );
     });
 
-    test('honor filters', () async {
-      const newObj = TestModel(id: null, msg: 'new');
-      final sl = getSourceList(
-        getRequestDelegate([listResponseBody], canCreate: true),
-      );
-      final writeResult = await sl.setItem(newObj, abcDetails);
-      final savedObj = writeResult.getOrRaise().item;
-      expect(savedObj, fred);
+    test(
+      'honor filters',
+      () async {
+        const newObj = TestModel(id: null, msg: 'new');
+        final sl = getSourceList(
+          getRequestDelegate([detailResponseBody], canCreate: true),
+        );
+        final writeResult = await sl.setItem(newObj, abcDetails);
+        final savedObj = writeResult.getOrRaise().item;
+        expect(savedObj, fred);
 
-      await hasNotCached(
-        sl,
-        [savedObj],
-        [details, abcDetails, localAbcDetails],
-      );
-    });
+        await hasNotCached(
+          sl,
+          [savedObj],
+          [details, abcDetails, localAbcDetails],
+        );
+      },
+      timeout: const Timeout(Duration(milliseconds: 10)),
+    );
   });
 
   group('SourceList.setItems should', () {

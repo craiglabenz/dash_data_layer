@@ -13,7 +13,9 @@ ApiSource<TestModel> getSrc({
   ReadHandler? readHandler,
   WriteRequestHandler? postHandler,
   ITimer? timer,
+  String? resultsKey = 'results',
 }) => ApiSource<TestModel>(
+  resultsKey: resultsKey,
   bindings: TestModel.bindings,
   restApi: RestApi(
     apiBaseUrl: 'https://fake.com/',
@@ -31,42 +33,80 @@ ApiSource<TestModel> getSrc({
 
 void main() {
   group('ApiSource.getById should', () {
-    test('make a GET request and process its response', () async {
-      final ApiSource<TestModel> src = getSrc(
-        readHandler: (url, {headers}) async {
-          return http.Response(
-            jsonEncode({'id': 'abc', 'msg': 'amazing'}),
-            HttpStatus.ok,
-            headers: respHeaders,
-          );
-        },
-      );
-      final result = await src.getById('abc', RequestDetails());
-      expect(result, isA<ReadSuccess<TestModel>>());
-      expect(
-        (result as ReadSuccess).item,
-        const TestModel(id: 'abc', msg: 'amazing'),
-      );
-    });
+    test(
+      'make a GET request and process its response',
+      () async {
+        final ApiSource<TestModel> src = getSrc(
+          readHandler: (url, {headers}) async {
+            return http.Response(
+              jsonEncode({
+                'results': {'id': 'abc', 'msg': 'amazing'},
+              }),
+              HttpStatus.ok,
+              headers: respHeaders,
+            );
+          },
+        );
+        final result = await src.getById('abc', RequestDetails());
+        expect(result, isA<ReadSuccess<TestModel>>());
+        expect(
+          (result as ReadSuccess).item,
+          const TestModel(id: 'abc', msg: 'amazing'),
+        );
+      },
+      timeout: const Timeout(Duration(milliseconds: 10)),
+    );
 
-    test('work with a real timer', () async {
-      final ApiSource<TestModel> src = getSrc(
-        readHandler: (url, {headers}) async {
-          return http.Response(
-            jsonEncode({'id': 'abc', 'msg': 'amazing'}),
-            HttpStatus.ok,
-            headers: respHeaders,
-          );
-        },
-        timer: BatchTimer(),
-      );
-      final result = await src.getById('abc', RequestDetails());
-      expect(result, isA<ReadSuccess<TestModel>>());
-      expect(
-        (result as ReadSuccess).item,
-        const TestModel(id: 'abc', msg: 'amazing'),
-      );
-    });
+    test(
+      'make a GET request and process its response without results key',
+      () async {
+        final ApiSource<TestModel> src = getSrc(
+          resultsKey: null,
+          readHandler: (url, {headers}) async {
+            return http.Response(
+              jsonEncode([
+                {'id': 'abc', 'msg': 'amazing'},
+              ]),
+              HttpStatus.ok,
+              headers: respHeaders,
+            );
+          },
+        );
+        final result = await src.getById('abc', RequestDetails());
+        expect(result, isA<ReadSuccess<TestModel>>());
+        expect(
+          (result as ReadSuccess).item,
+          const TestModel(id: 'abc', msg: 'amazing'),
+        );
+      },
+      timeout: const Timeout(Duration(milliseconds: 10)),
+    );
+
+    test(
+      'work with a real timer',
+      () async {
+        final ApiSource<TestModel> src = getSrc(
+          resultsKey: null,
+          readHandler: (url, {headers}) async {
+            return http.Response(
+              jsonEncode([
+                {'id': 'abc', 'msg': 'amazing'},
+              ]),
+              HttpStatus.ok,
+              headers: respHeaders,
+            );
+          },
+          timer: BatchTimer(),
+        );
+        final result = await src.getById('abc', RequestDetails());
+        expect(result, isA<ReadSuccess<TestModel>>());
+        expect(
+          (result as ReadSuccess).item,
+          const TestModel(id: 'abc', msg: 'amazing'),
+        );
+      },
+      timeout: const Timeout(Duration(milliseconds: 10)),
+    );
 
     test(
       'return null from a 404',
@@ -84,7 +124,7 @@ void main() {
         expect(result, isA<ReadSuccess<TestModel>>());
         expect((result as ReadSuccess).item, null);
       },
-      timeout: const Timeout(Duration(milliseconds: 50)),
+      timeout: const Timeout(Duration(milliseconds: 10)),
     );
   });
 
@@ -112,6 +152,32 @@ void main() {
       expect(items.first, const TestModel(id: 'abc', msg: 'amazing'));
       expect(items.last, const TestModel(id: 'xyz', msg: 'pretty good'));
     });
+
+    test(
+      'make a GET request and process its response without results key',
+      () async {
+        final ApiSource<TestModel> src = getSrc(
+          resultsKey: null,
+          readHandler: (url, {headers}) async {
+            return http.Response(
+              jsonEncode(
+                [
+                  {'id': 'abc', 'msg': 'amazing'},
+                  {'id': 'xyz', 'msg': 'pretty good'},
+                ],
+              ),
+              HttpStatus.ok,
+              headers: respHeaders,
+            );
+          },
+        );
+        final result = await src.getByIds({'abc', 'xyz'}, RequestDetails());
+        expect(result, isA<ReadListSuccess<TestModel>>());
+        final items = (result as ReadListSuccess).items;
+        expect(items.first, const TestModel(id: 'abc', msg: 'amazing'));
+        expect(items.last, const TestModel(id: 'xyz', msg: 'pretty good'));
+      },
+    );
 
     test('handle partial responses', () async {
       final ApiSource<TestModel> src = getSrc(

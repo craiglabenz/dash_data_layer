@@ -10,6 +10,8 @@ class ApiSource<T> extends Source<T> {
   /// {@macro ApiSource}
   ApiSource({
     required RestApi restApi,
+    this.logLevel = Level.OFF,
+    this.resultsKey = 'results',
     super.bindings,
     ITimer? timer,
   }) : api = restApi,
@@ -36,10 +38,25 @@ class ApiSource<T> extends Source<T> {
   /// when a batch is returned from the server.
   final Map<String, Completer<T?>> loadedItems;
 
-  // ignore: avoid_print
-  void _print(String msg) => ApiSource._shouldPrint ? print(msg) : null;
+  /// If supplied, is used to extract the list of items from the response body
+  /// of [fetchItems] if the payload is wrapped in a Map.
+  ///
+  /// For example, if your API returns this:
+  /// {
+  ///   "results": [...]
+  /// }
+  ///
+  /// Then you would set `resultsKey` to `results` (which is the default).
+  ///
+  /// If your API returns the requested objects directly, set this to null. It
+  /// is an error to set this to null AND have your API return a Map.
+  ///
+  /// See also:
+  ///   * [extractItemsFromJsonResponse] where this is evaluated.
+  final String? resultsKey;
 
-  static const _shouldPrint = false;
+  /// Controls the level of logging.
+  final Level logLevel;
 
   @override
   SourceType get sourceType => SourceType.remote;
@@ -47,7 +64,7 @@ class ApiSource<T> extends Source<T> {
   @override
   Future<ReadResult<T>> getById(String id, RequestDetails details) async {
     if (!loadedItems.containsKey(id) || !loadedItems[id]!.isCompleted) {
-      _print('Maybe queuing Id $id');
+      _log.log(logLevel, 'Maybe queuing Id $id');
       queueId(id);
     }
     return ReadSuccess(await loadedItems[id]!.future, details: details);
@@ -131,7 +148,7 @@ class ApiSource<T> extends Source<T> {
   /// Prepares an Id to be loaded in the next batch.
   void queueId(String id) {
     if (!queuedIds.contains(id) && !idsCurrentlyBeingFetched.contains(id)) {
-      _print('Id $id not yet queued - adding to queue now');
+      _log.log(logLevel, 'Id $id not yet queued - adding to queue now');
       loadedItems[id] = Completer<T?>();
       queuedIds.add(id);
       timer
@@ -142,7 +159,7 @@ class ApiSource<T> extends Source<T> {
 
   /// Submits any Ids currently in the queue for loading.
   Future<void> loadDeferredIds() async {
-    _print('Starting to load deferred ids: $queuedIds');
+    _log.log(logLevel, 'Starting to load deferred ids: $queuedIds');
     queuedIds.forEach(idsCurrentlyBeingFetched.add);
     final ids = Set<String>.from(queuedIds);
     queuedIds.clear();
@@ -152,25 +169,21 @@ class ApiSource<T> extends Source<T> {
     );
     switch (byIds) {
       case ReadListFailure():
-        {
-          for (final id in ids) {
-            loadedItems[id]!.complete(null);
-          }
+        for (final id in ids) {
+          loadedItems[id]!.complete(null);
         }
       case ReadListSuccess():
-        {
-          for (final id in byIds.missingItemIds) {
-            loadedItems[id]!.complete(null);
+        for (final id in byIds.missingItemIds) {
+          loadedItems[id]!.complete(null);
+        }
+        for (final id in byIds.itemsMap.keys) {
+          if (!loadedItems.containsKey(id)) {
+            continue;
           }
-          for (final id in byIds.itemsMap.keys) {
-            if (!loadedItems.containsKey(id)) {
-              continue;
-            }
-            if (!loadedItems[id]!.isCompleted) {
-              idsCurrentlyBeingFetched.remove(id);
-              loadedItems[id]!.complete(byIds.itemsMap[id]!);
-              loadedItems.remove(id);
-            }
+          if (!loadedItems[id]!.isCompleted) {
+            idsCurrentlyBeingFetched.remove(id);
+            loadedItems[id]!.complete(byIds.itemsMap[id]!);
+            loadedItems.remove(id);
           }
         }
     }
@@ -222,30 +235,6 @@ class ApiSource<T> extends Source<T> {
     RequestDetails details,
   ) => throw Exception('Should never call ApiSource.setItems');
 
-  /// Deserializes the result of a network request into the actual object(s).
-  T? hydrateItemResponse(ApiSuccess success) {
-    switch (success.body) {
-      case HtmlApiResultBody():
-        return null;
-      case JsonApiResultBody(:final data):
-        if (data.containsKey('results')) {
-          // TODO(craiglabenz): log that this is unexpected for [result.url]
-          if ((data['results']! as List).length != 1) {
-            // TODO(craiglabenz): log that this is even more unexpected
-          }
-          final items = (data['results']! as List)
-              .cast<Json>()
-              .map<T>(bindings.fromJson)
-              .toList();
-          return items.first;
-        } else {
-          return bindings.fromJson(data);
-        }
-      case PlainTextApiResultBody():
-        return null;
-    }
-  }
-
   @override
   Future<DeleteResult<T>> delete(String id, RequestDetails details) async {
     final request = WriteApiRequest(
@@ -259,19 +248,90 @@ class ApiSource<T> extends Source<T> {
     };
   }
 
+  /// Overrideable hook to extract the raw item payloads out of the response
+  /// body.
+  List<Json> extractItemsFromJsonResponse(JsonApiResultBody body) {
+    switch (body.data) {
+      case Map():
+        assert(
+          resultsKey != null && resultsKey!.isNotEmpty,
+          'Cannot extract values from Map without a resultsKey',
+        );
+        assert(
+          resultsKey == null || (body.data as Map).containsKey(resultsKey),
+          'Expected key $resultsKey not found in Map',
+        );
+        final results = (body.data as Map)[resultsKey!];
+        switch (results) {
+          case List():
+            return results.cast<Json>();
+          case Map():
+            return <Json>[results as Json];
+          default:
+            throw Exception(
+              'Unexpected data type: ${results.runtimeType} in list response',
+            );
+        }
+      case List():
+        return body.data as List<Json>;
+      case _:
+        throw Exception(
+          'Unexpected data type: ${body.data.runtimeType} in list response',
+        );
+    }
+  }
+
+  /// Overrideable hook to extract the raw item payloads out of the response
+  /// body.
+  Json extractItemFromJsonResponse(JsonApiResultBody body) {
+    switch (body.data) {
+      case Map():
+        return body.data as Json;
+      case List():
+        final dataList = body.data as List;
+        if (dataList.length != 1) {
+          _log.severe(
+            'Unexpectedly received ${dataList.length} items in detail response',
+          );
+        }
+        return dataList.first as Json;
+      case _:
+        throw Exception(
+          'Unexpected data type: ${body.data.runtimeType} in detail response',
+        );
+    }
+  }
+
+  /// Deserializes the result of a network request into the actual object(s).
+  T? hydrateItemResponse(ApiSuccess success) {
+    switch (success.body) {
+      case HtmlApiResultBody():
+        _log.warning('Received HTML response from ${success.url}');
+        return null;
+      case JsonApiResultBody():
+        final rawData = extractItemFromJsonResponse(
+          success.body as JsonApiResultBody,
+        );
+        return bindings.fromJson(rawData);
+      case PlainTextApiResultBody():
+        _log.warning('Received plain text response from ${success.url}');
+        return null;
+    }
+  }
+
   /// Deserializes the results of a network request into the actual object(s).
   List<T> hydrateListResponse(ApiSuccess success) {
     switch (success.body) {
       case HtmlApiResultBody():
+        _log.warning('Received HTML response from ${success.url}');
         return <T>[];
-      case JsonApiResultBody(:final data):
-        if (data.containsKey('results')) {
-          final List<Json> results = (data['results']! as List).cast<Json>();
-          return results.map<T>(bindings.fromJson).toList();
-        } else {
-          return [bindings.fromJson(data)];
-        }
+      case JsonApiResultBody():
+        final rawData = extractItemsFromJsonResponse(
+          success.body as JsonApiResultBody,
+        );
+        return rawData.map<T>(bindings.fromJson).toList();
       case PlainTextApiResultBody():
+        _log.warning('Received plain text response from ${success.url}');
         return <T>[];
     }
   }

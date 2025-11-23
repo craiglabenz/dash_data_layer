@@ -122,7 +122,7 @@ return plainText(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String html)?  html,TResult Function( Json data)?  json,TResult Function( String text)?  plainText,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String html)?  html,TResult Function( Object data)?  json,TResult Function( String text)?  plainText,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case HtmlApiResultBody() when html != null:
 return html(_that.html);case JsonApiResultBody() when json != null:
@@ -145,7 +145,7 @@ return plainText(_that.text);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String html)  html,required TResult Function( Json data)  json,required TResult Function( String text)  plainText,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String html)  html,required TResult Function( Object data)  json,required TResult Function( String text)  plainText,}) {final _that = this;
 switch (_that) {
 case HtmlApiResultBody():
 return html(_that.html);case JsonApiResultBody():
@@ -164,7 +164,7 @@ return plainText(_that.text);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String html)?  html,TResult? Function( Json data)?  json,TResult? Function( String text)?  plainText,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String html)?  html,TResult? Function( Object data)?  json,TResult? Function( String text)?  plainText,}) {final _that = this;
 switch (_that) {
 case HtmlApiResultBody() when html != null:
 return html(_that.html);case JsonApiResultBody() when json != null:
@@ -247,16 +247,10 @@ as String,
 
 
 class JsonApiResultBody implements ApiResultBody {
-  const JsonApiResultBody(final  Json data): _data = data;
+  const JsonApiResultBody(this.data);
   
 
- final  Json _data;
- Json get data {
-  if (_data is EqualUnmodifiableMapView) return _data;
-  // ignore: implicit_dynamic_type
-  return EqualUnmodifiableMapView(_data);
-}
-
+ final  Object data;
 
 /// Create a copy of ApiResultBody
 /// with the given fields replaced by the non-null parameter values.
@@ -268,12 +262,12 @@ $JsonApiResultBodyCopyWith<JsonApiResultBody> get copyWith => _$JsonApiResultBod
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is JsonApiResultBody&&const DeepCollectionEquality().equals(other._data, _data));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is JsonApiResultBody&&const DeepCollectionEquality().equals(other.data, data));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_data));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
 
 @override
 String toString() {
@@ -288,7 +282,7 @@ abstract mixin class $JsonApiResultBodyCopyWith<$Res> implements $ApiResultBodyC
   factory $JsonApiResultBodyCopyWith(JsonApiResultBody value, $Res Function(JsonApiResultBody) _then) = _$JsonApiResultBodyCopyWithImpl;
 @useResult
 $Res call({
- Json data
+ Object data
 });
 
 
@@ -307,8 +301,7 @@ class _$JsonApiResultBodyCopyWithImpl<$Res>
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') $Res call({Object? data = null,}) {
   return _then(JsonApiResultBody(
-null == data ? _self._data : data // ignore: cast_nullable_to_non_nullable
-as Json,
+null == data ? _self.data : data ,
   ));
 }
 

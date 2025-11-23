@@ -10,8 +10,12 @@ sealed class ApiResultBody with _$ApiResultBody {
   const factory ApiResultBody.html(String html) = HtmlApiResultBody;
 
   /// Container for a response body that came with the "application/json"
-  /// content type.
-  const factory ApiResultBody.json(Json data) = JsonApiResultBody;
+  /// content type. For detail endpoints, [data] is expected to either be a Map
+  /// or a List of Maps, of length 1. For list endpoints, [data] is expected to
+  /// either be a List of Maps, or a Map with a single key which points to a
+  /// List of Maps. This special key should be specified by the
+  /// [ApiSource.resultsKey] value.
+  const factory ApiResultBody.json(Object data) = JsonApiResultBody;
 
   /// Container for a response body that came with the "text/plain" content type.
   const factory ApiResultBody.plainText(String text) = PlainTextApiResultBody;
@@ -58,7 +62,7 @@ sealed class ApiResult with _$ApiResult {
   /// Returns the [Json] from an [ApiResult], or raises if it was unavailable.
   /// Usage of this computed property should only verifiying [isSuccess] is
   /// true.
-  Json get jsonOrRaise => switch (this) {
+  Object get jsonOrRaise => switch (this) {
     ApiSuccess(:final body) => switch (body) {
       HtmlApiResultBody() => throw Exception(
         'Received HTML, expected JSON for $url',
