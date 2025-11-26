@@ -359,6 +359,7 @@ which begins with entirely empty caches and moves through multiple requests from
 ```dart
 final activeUsersRequestDetails = RequestDetails(
   requestType: .global,
+  // [UserFilter] is a hypothetical filter class that you write.
   filter: UserFilter(isActive: true),
 );
 
@@ -453,12 +454,21 @@ Any records previously cached against this request will not be deleted, but they
 final users = await userRepository.getItems(
   // The default `RequestType` value is `.global`, which loads data from anywhere
   RequestDetails(
+    // [CreatedWithin] is a hypothetical filter class that you write.
     filters: CreatedWithin(const Duration(days: 7)),
   ),
 );
 ```
 
 If, upon app launch, you know you need to refresh this data again, use `.refresh` again when loading the data. It is the job of your state management solution to track when to use `.refresh`.
+
+### Expiring cached data
+
+By default, cached data does not expire. However, any time you write data to a `LocalSource`, you can specify a `ttl` (time to live) value to expire the data after a certain amount of time. Doing so will not automatically remove the data at that time, but will cause `LocalSource`s to return `null` when next asked for that data. Additionally, the stale data will be deleted at this time.
+
+Your state management will not automatically be made aware of expired data when its `ttl` elapses, as `Repository` classes and their inner `SourceList` objects do not watch for these implicit timers to expire and broadcast any signals. In a scenario where you have reduced tolerance for stale data, you should use `RequestType.refresh` to force a `SourceList` to skip reading any local sources and instead go straight back to your remote sources.
+
+If you know you always want to cache data for a limited period if time, you can supply a `ttl` value to the `LocalSource` itself, instead of each `RequestDetails` object. Note that a `ttl` value attached to a `RequestDetails` object will override any `ttl` value attached to the `LocalSource`, only for that cache write.
 
 ### Clearing cached data
 
@@ -474,7 +484,13 @@ await userRepository.clearForRequest(details);
 
 ## Creating a Local Source
 
-A `LocalSource` stores data on the device. It requires two persistence engines: one for the items themselves (`LocalSourcePersistence`) and one for the cache metadata (`CachePersistence`).
+A `LocalSource` stores data on the device. The inner design of a `LocalSource` optimizes for an easy extension / implementation experience at the cost of minor boilerplate when instantiating your new source.
+
+> Note: This is why `LocalMemorySource` is provided - it implements all of the required interfaces for you. The same is true for `HiveSource` out of `pkg:data_layer_hive`.
+
+`LocalSource` objects divide their persistence into three components: `itemsCache`, `requestCache`, and `paginatedRequestCache`. The `itemsCache` is responsible for storing the actual data, while the `requestCache` is responsible for storing metadata about the requests that were made. The `paginatedRequestCache` is responsible for storing metadata about the paginated requests that were made.
+
+Additionally, each of these cache objects is itself a layered caching mechanism to invisibly honor the `ttl` (time to live) values that you specify when writing data to the cache without requiring new `LocalSource` implementations you write to repeat this same logic.
 
 The package comes with `LocalMemorySource` for in-memory caching:
 
@@ -486,20 +502,25 @@ For examples of other local caches, see `pkg:data_layer_hive`.
 
 ## Extending a Local Source
 
-To create a persistent local source (e.g., using Hive or SQLite), you need to implement `LocalSourcePersistence` and `CachePersistence`.
+To create a persistent local source (e.g., using Hive or SQLite), you need to implement `SourceCache` for the persistence engine you are adding.
 
 ```dart
-class HiveUserPersistence implements LocalSourcePersistence<User> {
+class HiveCache<T> extends SourceCache<T> {
   // Implement methods to store/retrieve Users from Hive
 }
 
-class HiveCachePersistence implements CachePersistence {
-  // Implement methods to store cache keys and ID mappings
-}
-
-final hiveSource = LocalSource(
-  HiveUserPersistence(),
-  HiveCachePersistence(),
+// Then you can create a Hive-powered local source by passing in the correct
+// persistence engines.
+final hiveSource = LocalSource<User>(
+  itemsCache: ExpiringCache<User>(
+    cache: HiveCache<User>(),
+    cacheExpiryTimes: HiveCache<DateTime>(),
+  ),
+  requestCache: ExpiringCache<Set<String>>(
+    cache: HiveCache<Set<String>>(),
+    cacheExpiryTimes: HiveCache<DateTime>(),
+  ),
+  paginatedRequestCache: HiveCache<Set<String>>(),
   bindings: userBindings,
 );
 ```

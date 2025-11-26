@@ -1,12 +1,11 @@
-import 'package:data_layer/data_layer.dart'
-    show Pagination, RequestDetails, RequestType;
+import 'package:data_layer/data_layer.dart' show Pagination, RequestDetails;
 import 'package:test/test.dart';
 
 import '../models/test_model.dart';
 
 void main() {
   final details = RequestDetails();
-  final localDetails = RequestDetails(requestType: RequestType.local);
+  final localDetails = RequestDetails(requestType: .local);
   final paginationDetails = RequestDetails(
     pagination: Pagination.page(1),
   );
@@ -22,18 +21,18 @@ void main() {
     filter: const MsgStartsWithFilter('abc'),
   );
   final localPaginationDetails = RequestDetails(
-    requestType: RequestType.local,
+    requestType: .local,
     pagination: Pagination.page(1),
   );
 
   final localPaginationDetailsWithFilter = RequestDetails(
-    requestType: RequestType.local,
+    requestType: .local,
     pagination: Pagination.page(1),
     filter: const MsgStartsWithFilter('abc'),
   );
 
   final localPage2Details = RequestDetails(
-    requestType: RequestType.local,
+    requestType: .local,
     pagination: Pagination.page(2),
   );
 
@@ -66,12 +65,16 @@ void main() {
   });
 
   test(
-    'RequestDetails and pagination RequestDetails share noPagiationCacheKey',
+    'RequestDetails and pagination RequestDetails share noPaginationCacheKey',
     () {
       expect(details.cacheKey, equals(paginationDetails.noPaginationCacheKey));
       expect(
         details.cacheKey,
         equals(localPaginationDetails.noPaginationCacheKey),
+      );
+      expect(
+        details.cacheKey,
+        equals(localDetails.noPaginationCacheKey),
       );
     },
   );

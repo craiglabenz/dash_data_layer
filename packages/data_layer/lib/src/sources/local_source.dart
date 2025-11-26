@@ -6,214 +6,102 @@ import 'package:logging/logging.dart';
 /// Function which can assign a new Id to an unsaved item.
 typedef IdBuilder<T> = String Function(T);
 
-/// Interface for how a [LocalSource] persists which requests returned which
-/// records. Internally, this should store a map of request [CacheKey] values
-/// to the set of Ids on each record returned by the server.
-abstract class RequestCachePersistence {
-  /// Logs a [RequestDetails.cacheKey] as being associated with these ids.
-  Future<void> setCacheKey(CacheKey key, Set<String> ids);
-
-  /// Returns all Ids associated with the given cache, if any. Empty result
-  /// sets are not written to the cache, so a null result could indicate that
-  /// the request is completely fresh or that it was previously made but
-  /// returned no results.
-  Future<Set<String>?> getCacheKey(CacheKey key);
-
-  /// Yields all keys in the normal request cache.
-  Future<Iterable<CacheKey>> getRequestCacheKeys();
-
-  /// Yields all top level keys in the paginated cache.
-  Future<Iterable<CacheKey>> noPaginationCacheKeys();
-
-  /// Yields all second level keys under the top level key.
-  Future<Iterable<CacheKey>> noPaginationInnerKeys(
-    CacheKey noPaginationCacheKey,
-  );
-
-  /// Removes any trace of the [RequestDetails.cacheKey].
-  Future<void> clearCacheKey(CacheKey key);
-
-  /// Logs a paginated [RequestDetails.noPaginationCacheKey] and
-  /// [RequestDetails.cacheKey] as being associated with these ids.
-  Future<void> setPaginatedCacheKey({
-    required CacheKey noPaginationCacheKey,
-    required CacheKey cacheKey,
-    required Set<String> ids,
-  });
-
-  /// Returns all Ids associated with the given cache, if any.
-  Future<Set<String>?> getPaginatedCacheKey({
-    required CacheKey noPaginationCacheKey,
-    required CacheKey cacheKey,
-  });
-
-  /// Removes any trace of the paginated [RequestDetails] from the cache,
-  /// including other pages from the same request.
-  Future<void> clearPaginatedCacheKey({
-    required CacheKey noPaginationCacheKey,
-  });
-
-  /// Clears all caching information.
-  Future<void> clear();
-}
-
-/// Engine of [LocalSource] which stores serialized versions of actual data
-/// records, accessible by their unique identifiers.
-abstract class LocalSourceItemsPersistence<T> {
-  /// Deletes all objects.
-  Future<void> clear();
-
-  /// Loads the instance of [T] whose primary key is [id].
-  Future<T?> getById(String id);
-
-  /// Loads all known instances of [T] whose primary key is contained in [ids].
-  /// [ids] is allowed to be empty, in which case this should of course return
-  /// an empty iterable.
-  Future<Iterable<T>> getByIds(Set<String> ids);
-
-  /// Loads all known instances of [T].
-  Future<Iterable<T>> getAll();
-
-  /// Persists an instance of [T].
-  Future<void> setItem(T item, {required bool shouldOverwrite});
-
-  /// Persists multiple instances of [T].
-  Future<void> setItems(Iterable<T> items, {required bool shouldOverwrite});
-
-  /// Removes records matching these Ids.
-  Future<void> deleteIds(Set<String> ids);
-}
-
 /// {@template LocalSource}
-/// Flavor of [Source] which is entirely on-device. Exists to coordinate its
-/// [LocalSourceItemsPersistence] and [RequestCachePersistence].
+/// Flavor of [Source] which is entirely on-device.
+///
+/// Internally, this class's entire job is to coordinate its various
+/// [ExpiringCache] objects.
 /// {@endtemplate}
 class LocalSource<T> extends Source<T> {
   /// {@macro LocalSource}
-  LocalSource(
-    this._itemsPersistence,
-    this._requestCachePersistence, {
+  LocalSource({
+    required ExpiringCache<T> itemsCache,
+    required ExpiringCache<Set<String>> requestCache,
+    required SourceCache<Set<String>> paginatedRequestCache,
+    this.ttl,
     super.bindings,
-  });
+  }) : _itemsCache = itemsCache,
+       _requestCache = requestCache,
+       _paginatedRequestCache = paginatedRequestCache;
 
   final _log = Logger('$LocalSource<$T>');
 
   /// Warehouse for all known instances of [T].
-  final LocalSourceItemsPersistence<T> _itemsPersistence;
+  final ExpiringCache<T> _itemsCache;
 
-  /// Warehouse for caching metadata, both paginated and unpaginated.
-  final RequestCachePersistence _requestCachePersistence;
+  /// Warehouse for caching request metadata, both paginated and unpaginated.
+  final ExpiringCache<Set<String>> _requestCache;
+
+  /// Warehouse for caching request metadata, both paginated and unpaginated.
+  /// Not an [ExpiringCache] because pages expire individually.
+  final SourceCache<Set<String>> _paginatedRequestCache;
+
+  /// Duration after which the data should be considered stale. Stale data will
+  /// not be returned, and will be deleted when requested. There is no other
+  /// periodic process to remove stale data - if it is never requested again,
+  /// it will remain in storage indefinitely.
+  ///
+  /// A null value indicates that the data should never expire.
+  final Duration? ttl;
 
   /// Removes all data from the local persistence.
   Future<void> clear() => Future.wait<void>([
-    _itemsPersistence.clear(),
-    _requestCachePersistence.clear(),
+    _itemsCache.clear(),
+    _requestCache.clear(),
   ]);
 
   /// Removes these Ids from storage anywhere they may exist, which is why no
   /// [RequestDetails] are needed.
   Future<void> deleteIds(Set<String> ids) async {
     _log.finest('Deleting $ids');
-    await _itemsPersistence.deleteIds(ids);
+    await _itemsCache.multiDelete(ids);
 
-    final requestCacheCopy = <CacheKey, Set<String>>{};
-    for (final cacheKey
-        in await _requestCachePersistence.getRequestCacheKeys()) {
-      final cacheResults = await _requestCachePersistence.getCacheKey(cacheKey);
-      if (cacheResults != null) {
-        requestCacheCopy[cacheKey] = cacheResults;
-      }
-    }
-    for (final cacheKey
-        in await _requestCachePersistence.getRequestCacheKeys()) {
-      requestCacheCopy[cacheKey]!.removeAll(ids);
-      if (requestCacheCopy[cacheKey]!.isEmpty) {
-        requestCacheCopy.remove(cacheKey);
-      }
-    }
-
-    final paginatedCacheCopy = <CacheKey, Map<CacheKey, Set<String>>>{};
-    var noPageIter = await _requestCachePersistence.noPaginationCacheKeys();
-    for (final noPaginationCacheKey in noPageIter) {
-      // Add a default empty Map if the key is brand new
-      if (!paginatedCacheCopy.containsKey(noPaginationCacheKey)) {
-        paginatedCacheCopy[noPaginationCacheKey] = <CacheKey, Set<String>>{};
-      }
-
-      final innerPageIter = await _requestCachePersistence
-          .noPaginationInnerKeys(
-            noPaginationCacheKey,
-          );
-      for (final cacheKey in innerPageIter) {
-        final innerIds = await _requestCachePersistence.getPaginatedCacheKey(
-          noPaginationCacheKey: noPaginationCacheKey,
-          cacheKey: cacheKey,
-        );
-        if (innerIds != null) {
-          paginatedCacheCopy[noPaginationCacheKey]![cacheKey] = innerIds;
+    final allcachedRequests = await _requestCache.readAll();
+    final deletedRequests = <CacheKey>{};
+    for (final requestCacheKey in allcachedRequests.keys) {
+      final requestCacheIds = allcachedRequests[requestCacheKey];
+      if (requestCacheIds != null) {
+        final originalLength = requestCacheIds.length;
+        requestCacheIds.removeWhere((id) => ids.contains(id));
+        if (requestCacheIds.isEmpty) {
+          await _requestCache.delete(requestCacheKey);
+          deletedRequests.add(requestCacheKey);
+        } else if (requestCacheIds.length < originalLength) {
+          await _requestCache.write(requestCacheKey, requestCacheIds);
         }
       }
     }
 
-    noPageIter = await _requestCachePersistence.noPaginationCacheKeys();
-    for (final noPaginationCacheKey in noPageIter) {
-      final innerPageIter = await _requestCachePersistence
-          .noPaginationInnerKeys(
-            noPaginationCacheKey,
-          );
-      for (final cacheKey in innerPageIter) {
-        if (paginatedCacheCopy[noPaginationCacheKey] != null &&
-            paginatedCacheCopy[noPaginationCacheKey]![cacheKey] != null) {
-          paginatedCacheCopy[noPaginationCacheKey]![cacheKey]!.removeAll(ids);
-        }
+    final allPaginationClusters = await _paginatedRequestCache.readAll();
+    for (final paginationCluster in allPaginationClusters.entries) {
+      final noPaginationCacheKey = paginationCluster.key;
+      final paginatedCacheKeys = paginationCluster.value;
 
-        if (paginatedCacheCopy[noPaginationCacheKey]![cacheKey]!.isEmpty) {
-          paginatedCacheCopy[noPaginationCacheKey]!.remove(cacheKey);
-        }
-        if (paginatedCacheCopy[noPaginationCacheKey]!.isEmpty) {
-          paginatedCacheCopy.remove(noPaginationCacheKey);
-        }
-      }
-    }
-
-    // Remove the entire request cache persistence and rebuild it from the
-    // copy which has had the necessary deleted items removed.
-    await _requestCachePersistence.clear();
-    for (final cacheKey in requestCacheCopy.keys) {
-      await _requestCachePersistence.setCacheKey(
-        cacheKey,
-        requestCacheCopy[cacheKey]!,
-      );
-    }
-    for (final noPaginationCacheKey in paginatedCacheCopy.keys) {
-      for (final cacheKey in paginatedCacheCopy[noPaginationCacheKey]!.keys) {
-        await _requestCachePersistence.setPaginatedCacheKey(
-          noPaginationCacheKey: noPaginationCacheKey,
-          cacheKey: cacheKey,
-          ids: paginatedCacheCopy[noPaginationCacheKey]![cacheKey]!,
-        );
+      // If all of the paginated CacheKeys from this cluster were deleted, then
+      // we can delete the parent CacheKey as well.
+      if (deletedRequests.intersection(paginatedCacheKeys).length ==
+          paginatedCacheKeys.length) {
+        await _paginatedRequestCache.delete(noPaginationCacheKey);
       }
     }
   }
 
   /// Clears this request from the request cache.
   Future<void> clearForRequest(RequestDetails details) async {
+    _log.finest(
+      'Clearing paginated request $details with CacheKey '
+      '${details.cacheKey}',
+    );
     if (details.pagination == null) {
-      _log.finest(
-        'Clearing unpaginated request $details with CacheKey '
-        '${details.cacheKey}',
-      );
-      await _requestCachePersistence.clearCacheKey(details.cacheKey);
+      return _requestCache.delete(details.cacheKey);
     } else {
-      _log.finest(
-        'Clearing paginated request $details with CacheKey '
-        '${details.noPaginationCacheKey}::${details.cacheKey}',
+      final paginationCluster = await _paginatedRequestCache.read(
+        details.noPaginationCacheKey,
       );
-      // The "noPaginationCacheKey" is the family cache key of a paginated
-      // request, so this removes all pages of a given request.
-      await _requestCachePersistence.clearPaginatedCacheKey(
-        noPaginationCacheKey: details.noPaginationCacheKey,
-      );
+      if (paginationCluster != null) {
+        await _requestCache.multiDelete(paginationCluster);
+        await _paginatedRequestCache.delete(details.noPaginationCacheKey);
+      }
     }
   }
 
@@ -224,7 +112,7 @@ class LocalSource<T> extends Source<T> {
   Future<ReadResult<T>> getById(String id, RequestDetails details) async {
     details.assertEmpty('LocalSource<$T>.getById');
     return ReadSuccess<T>(
-      await _itemsPersistence.getById(id),
+      await _itemsCache.read(id),
       details: details,
     );
   }
@@ -235,16 +123,13 @@ class LocalSource<T> extends Source<T> {
     RequestDetails details,
   ) async {
     details.assertEmpty('LocalSource<$T>.getByIds');
-    final items = await _itemsPersistence.getByIds(ids);
-    final foundItemIds = items
-        .map<String>((item) => bindings.getId(item)!)
-        .toSet();
+    final items = await _itemsCache.multiRead(ids);
+    final foundItemIds = items.keys.toSet();
     final missingItemIds = ids.difference(foundItemIds);
-    return ReadListResult<T>.fromList(
+    return ReadListResult<T>.fromMap(
       items,
       details,
       missingItemIds,
-      bindings.getId,
     );
   }
 
@@ -252,39 +137,28 @@ class LocalSource<T> extends Source<T> {
   Future<ReadListResult<T>> getItems(RequestDetails details) async {
     Set<String>? ids;
     if (details.requestType == .allLocal) {
-      final allItems = await _itemsPersistence.getAll();
-      return ReadListResult.fromList(
+      final allItems = await _itemsCache.readAll();
+      return ReadListResult.fromMap(
         allItems,
         details,
         <String>{},
-        bindings.getId,
       );
     }
 
-    if (details.pagination == null) {
-      ids = await _requestCachePersistence.getCacheKey(details.cacheKey);
-      _log.finest('Getting items for ${details.cacheKey}. Found Ids $ids');
-    } else {
-      ids = await _requestCachePersistence.getPaginatedCacheKey(
-        noPaginationCacheKey: details.noPaginationCacheKey,
-        cacheKey: details.cacheKey,
-      );
-      _log.finest(
-        'Getting items for ${details.noPaginationCacheKey}::'
-        '${details.cacheKey}. Found Ids $ids',
-      );
-    }
+    ids = await _requestCache.read(details.cacheKey);
+    _log.finest('Getting items for ${details.cacheKey}. Found Ids $ids');
 
     assert(
       ids == null || ids.isNotEmpty,
       'Unexpectedly found empty set of Ids $ids from cache for $details. \n'
-      '[${details.noPaginationCacheKey}::${details.cacheKey}]\n'
-      'Empty sets should not be cached.',
+      'Empty sets should never be cached.',
     );
 
-    final items = ids != null ? await _itemsPersistence.getByIds(ids) : <T>[];
+    final items = ids != null
+        ? await _itemsCache.multiRead(ids)
+        : <String, T>{};
 
-    return ReadListResult.fromList(items, details, <String>{}, bindings.getId);
+    return ReadListResult.fromMap(items, details, <String>{});
   }
 
   T _generateId(T item) => (bindings as CreationBindings<T>).save(item);
@@ -298,14 +172,19 @@ class LocalSource<T> extends Source<T> {
           'Failed to set Id to unsaved $itemCopy because Bindings was not a '
           'CreationBindings',
         );
-        return WriteFailure<T>(FailureReason.badRequest, 'Could not save item');
+        return WriteFailure<T>(
+          FailureReason.badRequest,
+          'Could not save item with null Id',
+        );
       } else {
         itemCopy = _generateId(itemCopy);
       }
     }
-    await _itemsPersistence.setItem(
+
+    await _itemsCache.write(
+      bindings.getId(itemCopy)!,
       itemCopy,
-      shouldOverwrite: details.shouldOverwrite,
+      ttl: details.ttl ?? ttl,
     );
     return WriteSuccess<T>(itemCopy, details: details);
   }
@@ -321,23 +200,39 @@ class LocalSource<T> extends Source<T> {
     }
 
     final itemIds = items.map<String>((item) => bindings.getId(item)!).toSet();
-    if (details.pagination == null) {
-      _log.finest('Caching $itemIds to ${details.cacheKey}');
-      await _requestCachePersistence.setCacheKey(details.cacheKey, itemIds);
-    } else {
-      _log.finest(
-        'Caching $itemIds to ${details.noPaginationCacheKey}::'
-        '${details.cacheKey}',
-      );
-      await _requestCachePersistence.setPaginatedCacheKey(
-        noPaginationCacheKey: details.noPaginationCacheKey,
-        cacheKey: details.cacheKey,
-        ids: itemIds,
-      );
+    _log.finest('Caching $itemIds to ${details.cacheKey}');
+    await _requestCache.write(
+      details.cacheKey,
+      itemIds,
+      ttl: details.ttl ?? ttl,
+    );
+
+    if (details.pagination != null) {
+      final pageClusterCacheKeys =
+          await _paginatedRequestCache.read(
+            details.noPaginationCacheKey,
+          ) ??
+          <CacheKey>{};
+
+      if (!pageClusterCacheKeys.contains(details.cacheKey)) {
+        pageClusterCacheKeys.add(details.cacheKey);
+        await _paginatedRequestCache.write(
+          details.noPaginationCacheKey,
+          pageClusterCacheKeys,
+          // Do not pass ttl here -- that is handled by [_requestCache]
+          // because paginated requests timeout individually, not as a cluster
+        );
+      }
     }
-    await _itemsPersistence.setItems(
-      items,
-      shouldOverwrite: details.shouldOverwrite,
+
+    // Now save the actual item payloads
+    await _itemsCache.multiWrite(
+      Map.fromEntries(
+        items.map<MapEntry<String, T>>(
+          (item) => MapEntry(bindings.getId(item)!, item),
+        ),
+      ),
+      ttl: details.ttl ?? ttl,
     );
 
     return WriteListSuccess<T>(items, details: details);

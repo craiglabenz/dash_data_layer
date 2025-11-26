@@ -88,7 +88,6 @@ RequestDelegate getRequestDelegate(
   );
 }
 
-final RequestDelegate delegate200 = getRequestDelegate([listResponseBody]);
 final RequestDelegate twoItemdelegate200 = getRequestDelegate([
   twoElementResponseBody,
 ]);
@@ -96,14 +95,6 @@ final RequestDelegate twoItemdelegate200x2 = getRequestDelegate([
   twoElementResponseBody,
   twoElementResponseBody,
 ]);
-final RequestDelegate delegate404 = getRequestDelegate(
-  [errorBody],
-  statusCode: HttpStatus.notFound,
-);
-final RequestDelegate delegate404x2 = getRequestDelegate(
-  [errorBody, errorBody],
-  statusCode: HttpStatus.notFound,
-);
 RequestDelegate getEmptyDelegate() => getRequestDelegate([emptyResponseBody]);
 
 final RequestDelegate creatableDelegate = getRequestDelegate([
@@ -118,8 +109,8 @@ final RequestDelegate updateableDelegate = getRequestDelegate([
 SourceList<TestModel> getSourceList(RequestDelegate delegate) =>
     SourceList<TestModel>(
       sources: <Source<TestModel>>[
-        LocalMemorySource<TestModel>(getId: TestModel.bindings.getId),
-        LocalMemorySource<TestModel>(getId: TestModel.bindings.getId),
+        LocalMemorySource<TestModel>(bindings: TestModel.bindings),
+        LocalMemorySource<TestModel>(bindings: TestModel.bindings),
         ApiSource<TestModel>(
           bindings: TestModel.bindings,
           restApi: RestApi(
@@ -136,7 +127,7 @@ SourceList<TestModel> getSourceList(RequestDelegate delegate) =>
 void main() {
   group('SourceList.getById should', () {
     test('get and cache items', () async {
-      final sl = getSourceList(delegate200);
+      final sl = getSourceList(getRequestDelegate([listResponseBody]));
       final readResult = await sl.getById(_id, details);
       final loadedObj = readResult.getOrRaise().item;
       expect(loadedObj, equals(fred));
@@ -152,7 +143,12 @@ void main() {
     test(
       'return empty result when item is not found',
       () async {
-        final sl = getSourceList(delegate404);
+        final sl = getSourceList(
+          getRequestDelegate(
+            [errorBody],
+            statusCode: HttpStatus.notFound,
+          ),
+        );
         final readResult = await sl.getById(_id, details);
         expect(readResult.getOrRaise().item, isNull);
         await hasNotCached(
@@ -166,7 +162,12 @@ void main() {
     );
 
     test('honor request types', () async {
-      final sl = getSourceList(delegate404x2);
+      final sl = getSourceList(
+        getRequestDelegate(
+          [errorBody, errorBody],
+          statusCode: HttpStatus.notFound,
+        ),
+      );
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItem(
         fred,
         localDetails,
@@ -450,7 +451,12 @@ void main() {
     });
 
     test('surface 404s', () async {
-      final sl = getSourceList(delegate404x2);
+      final sl = getSourceList(
+        getRequestDelegate(
+          [errorBody, errorBody],
+          statusCode: HttpStatus.notFound,
+        ),
+      );
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
         fred,
         flintstone,
@@ -720,7 +726,7 @@ void main() {
 
   group('SourceList should', () {
     test('be able to read all data', () async {
-      final sl = getSourceList(delegate200);
+      final sl = getSourceList(getRequestDelegate([listResponseBody]));
       await sl.setItem(fred, localDetails);
       await sl.setItems([flintstone], localDetails);
       final readResult = await sl.getItems(
@@ -729,6 +735,86 @@ void main() {
       final items = readResult.getOrRaise().items;
       expect(items.length, equals(2));
       expect(items, contains(fred));
+      expect(items, contains(flintstone));
+    });
+  });
+
+  group('SourceList with ttl should', () {
+    test('fallback for partially missing data in getByIds', () async {
+      // Returns Fred
+      final sl = getSourceList(getRequestDelegate([listResponseBody]));
+
+      // Set stale Fred
+      await sl.setItem(
+        fred,
+        RequestDetails(
+          requestType: .local,
+          ttl: Duration.zero,
+        ),
+      );
+      // Set fresh Flintstone
+      await sl.setItem(
+        flintstone,
+        RequestDetails(
+          requestType: .local,
+          ttl: const Duration(days: 1),
+        ),
+      );
+
+      final readResult = await sl.getByIds({
+        fred.id!,
+        flintstone.id!,
+      }, RequestDetails());
+      final items = readResult.getOrRaise().items;
+      expect(items.length, equals(2));
+      expect(items, contains(fred));
+      expect(items, contains(flintstone));
+    });
+
+    test('fallback for global requests in getItems', () async {
+      // Returns Fred
+      final sl = getSourceList(getRequestDelegate([listResponseBody]));
+
+      // Set stale Flintstone
+      await sl.setItems(
+        [flintstone],
+        RequestDetails(
+          requestType: .local,
+          ttl: Duration.zero,
+        ),
+      );
+
+      final readResult = await sl.getItems(RequestDetails());
+      final items = readResult.getOrRaise().items;
+      expect(items.length, equals(1));
+      expect(items, contains(fred));
+    });
+
+    test('return only fresh data in getItems', () async {
+      // Returns Fred, but won't get requested
+      final sl = getSourceList(getRequestDelegate([listResponseBody]));
+
+      // Set stale Fred
+      await sl.setItems(
+        [fred],
+        RequestDetails(
+          requestType: .local,
+          ttl: Duration.zero,
+        ),
+      );
+
+      // Fresh Flintstone
+      await sl.setItems(
+        [flintstone],
+        RequestDetails(
+          requestType: .local,
+          ttl: const Duration(days: 1),
+        ),
+      );
+
+      final readResult = await sl.getItems(RequestDetails());
+      final items = readResult.getOrRaise().items;
+      expect(items.length, equals(1));
       expect(items, contains(flintstone));
     });
   });

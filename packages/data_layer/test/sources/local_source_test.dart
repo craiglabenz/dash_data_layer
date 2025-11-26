@@ -3,8 +3,9 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import '../models/test_model.dart';
 
-class MockRequestCachePersistence extends Mock
-    implements RequestCachePersistence {}
+class MockItemsCache extends Mock implements ExpiringCache<TestModel> {}
+
+class MockRequestCache extends Mock implements ExpiringCache<Set<String>> {}
 
 final details = RequestDetails();
 final abcDetails = RequestDetails(
@@ -16,540 +17,253 @@ final paginationDetails = RequestDetails(
 final page2Details = RequestDetails(
   pagination: Pagination.page(2),
 );
+const item = TestModel(id: 'item 1');
+const item2 = TestModel(id: 'item 2');
+const item3 = TestModel(id: 'item 3');
+
+const allItemsByIds = <String, TestModel>{
+  'item 1': item,
+  'item 2': item2,
+  'item 3': item3,
+};
+const items1and2ByIds = <String, TestModel>{
+  'item 1': item,
+  'item 2': item2,
+};
+const items2and3ByIds = <String, TestModel>{
+  'item 2': item2,
+  'item 3': item3,
+};
+const items1And3ByIds = <String, TestModel>{
+  'item 1': item,
+  'item 3': item3,
+};
 
 void main() {
-  late LocalSource<TestModel> mem;
-  late LocalSource<TestModel> mockMem;
-  late MockRequestCachePersistence requestCache;
-  const item = TestModel(id: 'item 1');
-  const item2 = TestModel(id: 'item 2');
-  const item3 = TestModel(id: 'item 3');
+  late LocalSource<TestModel> source;
+
+  late MockItemsCache mockItemsCache;
+  late MockRequestCache mockRequestCache;
+  late MockRequestCache mockPaginatedRequestCache;
+  setUp(() {
+    mockItemsCache = MockItemsCache();
+    mockRequestCache = MockRequestCache();
+    mockPaginatedRequestCache = MockRequestCache();
+    source = LocalSource<TestModel>(
+      bindings: TestModel.bindings,
+      itemsCache: mockItemsCache,
+      requestCache: mockRequestCache,
+      paginatedRequestCache: mockPaginatedRequestCache,
+    );
+  });
 
   group('LocalMemorySource.setItem should', () {
-    late LocalMemorySource<TestModel> idSettingMem;
-    setUp(() {
-      requestCache = MockRequestCachePersistence();
-      mem = LocalSource<TestModel>(
-        InMemoryItemsPersistence<TestModel>(
-          TestModel.bindings.getId,
-        ),
-        InMemoryCachePersistence(),
-        bindings: TestModel.bindings,
-      );
-      mockMem = LocalSource<TestModel>(
-        InMemoryItemsPersistence<TestModel>(TestModel.bindings.getId),
-        requestCache,
-        bindings: TestModel.bindings,
-      );
-      idSettingMem = LocalMemorySource<TestModel>(
-        bindings: TestModel.bindings,
-      );
-    });
-
     test('save items', () async {
-      await mem.setItem(item, details);
-      await fullyContains(mem, [item], requests: []);
+      when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
+      await source.setItem(item, details);
+      verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
-      await mem.setItem(item2, abcDetails);
-      await fullyContains(mem, [item2], requests: []);
+      when(
+        () => mockItemsCache.write(item2.id!, item2),
+      ).thenAnswer((_) async {});
+      await source.setItem(item2, abcDetails);
+      verify(() => mockItemsCache.write(item2.id!, item2)).called(1);
 
-      await mockMem.setItem(item, details);
-      await mockMem.setItem(item2, abcDetails);
-      verifyNever(() => requestCache.setCacheKey(details.cacheKey, any()));
+      // setItem never writes cache info - only setItems can do that
+      verifyNever(() => mockRequestCache.write(details.cacheKey, any()));
+      verifyNever(() => mockRequestCache.write(abcDetails.cacheKey, any()));
     });
 
     test('accept items twice', () async {
-      await mem.setItem(item, details);
-      await fullyContains(mem, [item], requests: []);
+      when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
+      await source.setItem(item, details);
+      verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
-      await mem.setItem(item, details);
-      await fullyContains(mem, [item], requests: []);
+      when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
+      await source.setItem(item, details);
+      verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
-      await mockMem.setItem(item, details);
-      await mockMem.setItem(item, details);
-      verifyNever(() => requestCache.setCacheKey(details.cacheKey, any()));
+      verifyNever(() => mockRequestCache.write(details.cacheKey, any()));
     });
 
     test('overwrite', () async {
-      await mem.setItem(item, details);
-      await fullyContains(mem, [item], requests: []);
+      when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
+      await source.setItem(item, details);
+      verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
-      const itemTake2 = TestModel(id: 'item 1', msg: 'different');
-      await mem.setItem(itemTake2, details);
-      await fullyContains(mem, [itemTake2], requests: []);
-    });
-
-    test('honor overwrite=False', () async {
-      await mem.setItem(item, details);
-      await fullyContains(mem, [item], requests: []);
-
-      const itemTake2 = TestModel(id: 'item 1', msg: 'different');
-      await mem.setItem(itemTake2, RequestDetails(shouldOverwrite: false));
-      await fullyContains(mem, [item], requests: []);
+      final itemTake2 = TestModel(id: item.id, msg: 'different');
+      when(
+        () => mockItemsCache.write(itemTake2.id!, itemTake2),
+      ).thenAnswer((_) async {});
+      await source.setItem(itemTake2, details);
+      verify(() => mockItemsCache.write(itemTake2.id!, itemTake2)).called(1);
     });
 
     test('not cache pagination info', () async {
-      final deets = RequestDetails(
-        pagination: Pagination.page(2),
-      );
+      final deets = RequestDetails(pagination: Pagination.page(2));
       final item = TestModel.randomId();
-      await mem.setItem(item, deets);
 
+      when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
       // setItem never writes cache info - only setItems can do that
-      await mockMem.setItem(item, deets);
-      verifyNever(
-        () => requestCache.setCacheKey(deets.cacheKey, any()),
-      ).called(0);
-      verifyNever(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: any(named: 'noPaginationCacheKey'),
-          cacheKey: any(named: 'cacheKey'),
-          ids: any(named: 'ids'),
-        ),
-      );
-    });
+      await source.setItem(item, deets);
+      verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
-    test('set Ids', () async {
-      const item = TestModel(id: null, msg: 'hello');
-      final result = await idSettingMem.setItem(item, details);
-      expect(result.getOrRaise().item.id, 'new');
+      verifyNever(
+        () => mockRequestCache.write(deets.cacheKey, any()),
+      ).called(0);
     });
   });
 
   group('LocalMemorySource.setItems should', () {
-    setUp(() {
-      requestCache = MockRequestCachePersistence();
-      mem = LocalSource<TestModel>(
-        InMemoryItemsPersistence<TestModel>(TestModel.bindings.getId),
-        InMemoryCachePersistence(),
-        bindings: TestModel.bindings,
-      );
-      mockMem = LocalSource<TestModel>(
-        InMemoryItemsPersistence<TestModel>(TestModel.bindings.getId),
-        requestCache,
-        bindings: TestModel.bindings,
-      );
-    });
-
     test('set items', () async {
-      const item2 = TestModel(id: 'item 2');
-      await mem.setItems([item, item2], details);
-      await fullyContains(mem, [item, item2], requests: [details]);
-
-      await mem.setItems([item2, item3], details);
-      await fullyContains(mem, [item], requests: []);
-      await fullyContains(mem, [item2, item3], requests: [details]);
-    });
-
-    test('set items mocked', () async {
-      const item2 = TestModel(id: 'item 2');
       when(
-        () => requestCache.setCacheKey(details.cacheKey, <String>{
+        () => mockItemsCache.multiWrite(items1and2ByIds),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockRequestCache.write(details.cacheKey, <String>{
           item.id!,
           item2.id!,
         }),
       ).thenAnswer((_) async {});
+      await source.setItems([item, item2], details);
+      verify(() => mockItemsCache.multiWrite(items1and2ByIds)).called(1);
+
       when(
-        () => requestCache.setCacheKey(details.cacheKey, <String>{
+        () => mockItemsCache.multiWrite(items2and3ByIds),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockRequestCache.write(details.cacheKey, <String>{
           item2.id!,
           item3.id!,
         }),
       ).thenAnswer((_) async {});
-      await mockMem.setItems([item, item2], details);
-      // Called a first time
-      verify(() => requestCache.setCacheKey(details.cacheKey, any())).called(1);
-
-      await mockMem.setItems([item2, item3], details);
-      // Called again
-      verify(() => requestCache.setCacheKey(details.cacheKey, any())).called(1);
+      await source.setItems([item2, item3], details);
+      verify(() => mockItemsCache.multiWrite(items2and3ByIds)).called(1);
     });
 
-    test('set items with in waves with all pagination', () async {
-      await mem.setItems([item, item2], paginationDetails);
-      await fullyContains(mem, [item, item2], requests: [paginationDetails]);
-
-      await mem.setItems([item2, item3], paginationDetails);
-      await notInCache(mem, [item], requests: [details, paginationDetails]);
-      await fullyContains(mem, [item2], requests: [paginationDetails]);
-      await fullyContains(mem, [item3], requests: [paginationDetails]);
-    });
-
-    test('set items with in waves with all pagination [mock mem]', () async {
+    test('set items with pagination', () async {
       when(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: paginationDetails.noPaginationCacheKey,
-          cacheKey: paginationDetails.cacheKey,
-          ids: <String>{
-            item.id!,
-            item2.id!,
-          },
+        () => mockItemsCache.multiWrite(items1and2ByIds),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockPaginatedRequestCache.read(
+          paginationDetails.noPaginationCacheKey,
+        ),
+      ).thenAnswer((_) async => {});
+      when(
+        () => mockPaginatedRequestCache.write(
+          paginationDetails.noPaginationCacheKey,
+          <String>{paginationDetails.cacheKey},
         ),
       ).thenAnswer((_) async {});
       when(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: paginationDetails.noPaginationCacheKey,
-          cacheKey: paginationDetails.cacheKey,
-          ids: <String>{
-            item2.id!,
-            item3.id!,
-          },
-        ),
+        () => mockRequestCache.write(paginationDetails.cacheKey, <String>{
+          item.id!,
+          item2.id!,
+        }),
       ).thenAnswer((_) async {});
-      await mockMem.setItems([item, item2], paginationDetails);
-      verifyNever(
-        () => requestCache.setCacheKey(paginationDetails.cacheKey, any()),
-      );
-      verify(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: any(
-            named: 'noPaginationCacheKey',
-            that: equals(paginationDetails.noPaginationCacheKey),
-          ),
-          cacheKey: any(
-            named: 'cacheKey',
-            that: equals(paginationDetails.cacheKey),
-          ),
-          ids: any(
-            named: 'ids',
-            that: equals({item.id!, item2.id!}),
-          ),
-        ),
-      ).called(1);
-
-      await mockMem.setItems([item2, item3], paginationDetails);
-
-      verifyNever(
-        () => requestCache.setCacheKey(paginationDetails.cacheKey, any()),
-      );
-      verify(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: any(
-            named: 'noPaginationCacheKey',
-            that: equals(paginationDetails.noPaginationCacheKey),
-          ),
-          cacheKey: any(
-            named: 'cacheKey',
-            that: equals(paginationDetails.cacheKey),
-          ),
-          ids: any(
-            named: 'ids',
-            that: equals({item2.id!, item3.id!}),
-          ),
-        ),
-      ).called(1);
+      await source.setItems([item, item2], paginationDetails);
     });
 
-    test('set items with pagination then without [real mem]', () async {
-      await mem.setItems([item, item2], paginationDetails);
-      await fullyContains(mem, [item, item2], requests: [paginationDetails]);
-
-      await mem.setItems([item2, item3], details);
-      await notInCache(mem, [item], requests: [details]);
-      await fullyContains(mem, [item], requests: [paginationDetails]);
-      await fullyContains(mem, [item2], requests: [details, paginationDetails]);
-      await fullyContains(mem, [item3], requests: [details]);
-    });
-
-    test('set items with pagination then without [mock mem]', () async {
+    test('set items with set name', () async {
       when(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: paginationDetails.noPaginationCacheKey,
-          cacheKey: paginationDetails.cacheKey,
-          ids: <String>{
-            item.id!,
-            item2.id!,
-          },
-        ),
+        () => mockItemsCache.multiWrite(items2and3ByIds),
       ).thenAnswer((_) async {});
       when(
-        () => requestCache.setCacheKey(
-          details.cacheKey,
-          <String>{
-            item2.id!,
-            item3.id!,
-          },
-        ),
-      ).thenAnswer((_) async {});
-      await mockMem.setItems([item, item2], paginationDetails);
-      verifyNever(
-        () => requestCache.setCacheKey(paginationDetails.cacheKey, any()),
-      );
-      verify(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: any(
-            named: 'noPaginationCacheKey',
-            that: equals(paginationDetails.noPaginationCacheKey),
-          ),
-          cacheKey: any(
-            named: 'cacheKey',
-            that: equals(paginationDetails.cacheKey),
-          ),
-          ids: any(
-            named: 'ids',
-            that: equals({item.id!, item2.id!}),
-          ),
-        ),
-      ).called(1);
-
-      await mockMem.setItems([item2, item3], details);
-      verify(
-        () =>
-            requestCache.setCacheKey(details.cacheKey, {item2.id!, item3.id!}),
-      ).called(1);
-      verifyNever(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: any(named: 'noPaginationCacheKey'),
-          cacheKey: any(named: 'cacheKey'),
-          ids: any(named: 'ids'),
-        ),
-      );
-    });
-
-    test(
-      'set items with all pagination requests different page [real mem]',
-      () async {
-        await mem.setItems([item, item2], paginationDetails);
-        await fullyContains(mem, [item, item2], requests: [paginationDetails]);
-
-        const item3 = TestModel(id: 'item 3');
-        await mem.setItems([item3], page2Details);
-        await fullyContains(mem, [item, item2], requests: [paginationDetails]);
-        await notInCache(mem, [item, item2], requests: [page2Details]);
-        await fullyContains(mem, [item3], requests: [page2Details]);
-        await notInCache(mem, [item3], requests: [paginationDetails]);
-      },
-    );
-
-    test(
-      'set items with all pagination requests different page [mock mem]',
-      () async {
-        when(
-          () => requestCache.setPaginatedCacheKey(
-            noPaginationCacheKey: paginationDetails.noPaginationCacheKey,
-            cacheKey: paginationDetails.cacheKey,
-            ids: <String>{item.id!, item2.id!},
-          ),
-        ).thenAnswer((_) async {});
-        when(
-          () => requestCache.setPaginatedCacheKey(
-            noPaginationCacheKey: page2Details.noPaginationCacheKey,
-            cacheKey: page2Details.cacheKey,
-            ids: <String>{item3.id!},
-          ),
-        ).thenAnswer((_) async {});
-        await mockMem.setItems([item, item2], paginationDetails);
-        verifyNever(
-          () => requestCache.setCacheKey(paginationDetails.cacheKey, any()),
-        );
-        verify(
-          () => requestCache.setPaginatedCacheKey(
-            noPaginationCacheKey: any(
-              named: 'noPaginationCacheKey',
-              that: equals(paginationDetails.noPaginationCacheKey),
-            ),
-            cacheKey: any(
-              named: 'cacheKey',
-              that: equals(paginationDetails.cacheKey),
-            ),
-            ids: any(
-              named: 'ids',
-              that: equals({item.id!, item2.id!}),
-            ),
-          ),
-        ).called(1);
-
-        await mockMem.setItems([item3], page2Details);
-        verifyNever(
-          () => requestCache.setCacheKey(page2Details.cacheKey, any()),
-        );
-        verify(
-          () => requestCache.setPaginatedCacheKey(
-            noPaginationCacheKey: any(
-              named: 'noPaginationCacheKey',
-              that: equals(page2Details.noPaginationCacheKey),
-            ),
-            cacheKey: any(
-              named: 'cacheKey',
-              that: equals(page2Details.cacheKey),
-            ),
-            ids: any(
-              named: 'ids',
-              that: equals({item3.id!}),
-            ),
-          ),
-        ).called(1);
-      },
-    );
-
-    test('set items with set name [real mem]', () async {
-      await mem.setItems([item, item2], details);
-      await fullyContains(mem, [item, item2], requests: [details]);
-
-      await mem.setItems([item2, item3], abcDetails);
-      await fullyContains(mem, [item], requests: [details]);
-      await fullyContains(mem, [item2], requests: [details, abcDetails]);
-      await fullyContains(mem, [item3], requests: [abcDetails]);
-    });
-
-    test('set items with set name [mock mem]', () async {
-      when(
-        () => requestCache.setCacheKey(
-          details.cacheKey,
-          <String>{item.id!, item2.id!},
-        ),
-      ).thenAnswer((_) async {});
-      when(
-        () => requestCache.setCacheKey(
-          abcDetails.cacheKey,
-          <String>{item2.id!, item3.id!},
-        ),
-      ).thenAnswer((_) async {});
-      await mockMem.setItems([item, item2], details);
-      verify(
-        () => requestCache.setCacheKey(details.cacheKey, {item.id!, item2.id!}),
-      ).called(1);
-      verifyNever(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: any(named: 'noPaginationCacheKey'),
-          cacheKey: any(named: 'cacheKey'),
-          ids: any(named: 'ids'),
-        ),
-      );
-
-      await mockMem.setItems([item2, item3], abcDetails);
-      verify(
-        () => requestCache.setCacheKey(abcDetails.cacheKey, {
+        () => mockRequestCache.write(abcDetails.cacheKey, <String>{
           item2.id!,
           item3.id!,
         }),
-      ).called(1);
-      verifyNever(
-        () => requestCache.setPaginatedCacheKey(
-          noPaginationCacheKey: any(named: 'noPaginationCacheKey'),
-          cacheKey: any(named: 'cacheKey'),
-          ids: any(named: 'ids'),
-        ),
-      );
+      ).thenAnswer((_) async {});
+      await source.setItems([item2, item3], abcDetails);
     });
   });
 
   group('LocalMemorySource.getById should', () {
-    const item2 = TestModel(id: 'item 2');
-
-    setUp(() {
-      mem = LocalMemorySource<TestModel>(bindings: TestModel.bindings);
-    });
-
     test('throw for filters or pagination', () async {
       expect(
-        () => mem.getById(item.id!, abcDetails),
+        () => source.getById(item.id!, abcDetails),
         _throwsAssertionError,
       );
     });
 
     test('return known items', () async {
-      await mem.setItem(item, details);
-      await mem.getById(item.id!, details);
-      // no request cache hits bc only [setItems] can do that
-      await fullyContains(mem, [item], requests: []);
+      when(() => mockItemsCache.read(item.id!)).thenAnswer((_) async => item);
+      await source.getById(item.id!, details);
+      verify(() => mockItemsCache.read(item.id!)).called(1);
     });
 
     test('return empty ReadSuccess for unknown items', () async {
-      await mem.setItem(item, details);
-      await notInCache(mem, [item2], containsAtAll: false);
+      when(() => mockItemsCache.read(item.id!)).thenAnswer((_) async => null);
+      final result = await source.getById(item.id!, details);
+      expect(result, isA<ReadSuccess<TestModel>>());
+      expect(result.itemOrRaise(), isNull);
+      verify(() => mockItemsCache.read(item.id!)).called(1);
     });
 
     test('NOT honor request details', () async {
-      await mem.setItem(item, details);
-      await fullyContains(mem, [item], requests: []);
-
-      await mem.setItem(item, abcDetails);
-      await fullyContains(mem, [item], requests: []);
+      when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
+      await source.setItem(item, details);
+      verifyNever(() => mockRequestCache.write(details.cacheKey, any()));
     });
 
     test('NOT honor pagination', () async {
-      final page1Deets = RequestDetails(
-        pagination: Pagination.page(1),
+      when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
+      await source.setItem(item, paginationDetails);
+      verifyNever(
+        () => mockRequestCache.write(paginationDetails.cacheKey, any()),
       );
-      final randomIdItem = TestModel.randomId();
-      await mem.setItem(randomIdItem, page1Deets);
-
-      // Item exists and is loadable by Id, but is not visible in the
-      // getItems payload for `details` (as indicated by the empty list)
-      await fullyContains(mem, [randomIdItem], requests: []);
     });
   });
 
   group('LocalMemorySource.getByIds should', () {
-    setUp(() {
-      mem = LocalMemorySource<TestModel>(bindings: TestModel.bindings);
-    });
-
     test('throw for filters or pagination', () async {
       expect(
-        () => mem.getByIds({item.id!}, abcDetails),
+        () => source.getByIds({item.id!}, abcDetails),
         _throwsAssertionError,
       );
     });
 
     test('return items', () async {
-      await mem.setItems([item, item2], details);
-      final maybeResult = await mem.getByIds(
+      when(
+        () => mockItemsCache.multiRead({item.id!, item2.id!}),
+      ).thenAnswer((_) async => items1and2ByIds);
+      final maybeResult = await source.getByIds(
         {item.id!, item2.id!},
         details,
       );
       expect(maybeResult, isA<ReadListSuccess<TestModel>>());
-      final result = maybeResult as ReadListSuccess<TestModel>;
-      expect(
-        result,
-        ReadListResult<TestModel>.fromList(
-          [item, item2],
-          details,
-          {},
-          TestModel.bindings.getId,
-        ),
-      );
+      verify(() => mockItemsCache.multiRead({item.id!, item2.id!})).called(1);
     });
 
     test('return items for partial hits', () async {
-      await mem.setItems([item, item2], details);
-      final maybeResult = await mem.getByIds(
+      when(
+        () => mockItemsCache.multiRead({item.id!, item2.id!, item3.id!}),
+      ).thenAnswer((_) async => allItemsByIds);
+      final maybeResult = await source.getByIds(
         {item.id!, item2.id!, item3.id!},
         details,
       );
       expect(maybeResult, isA<ReadListSuccess<TestModel>>());
-      final result = maybeResult as ReadListSuccess<TestModel>;
-      expect(
-        result,
-        ReadListResult<TestModel>.fromList(
-          [item, item2],
-          details,
-          {item3.id!},
-          TestModel.bindings.getId,
-        ),
-      );
+      verify(
+        () => mockItemsCache.multiRead({item.id!, item2.id!, item3.id!}),
+      ).called(1);
     });
   });
 
   group('LocalMemorySource.getItems should', () {
-    setUp(() {
-      mem = LocalMemorySource<TestModel>(bindings: TestModel.bindings);
-    });
     test('return items', () async {
-      await mem.setItems([item, item2], details);
-      final maybeResult = await mem.getItems(details);
-      await fullyContains(mem, [item, item2], requests: [details]);
-      await notInCache(mem, [item, item2], requests: [abcDetails]);
-      await notInCache(
-        mem,
-        [item3],
-        requests: [details, abcDetails],
-        containsAtAll: false,
-      );
+      when(
+        () => mockRequestCache.read(details.cacheKey),
+      ).thenAnswer((_) async => items1And3ByIds.keys.toSet());
+      when(
+        () => mockItemsCache.multiRead(items1And3ByIds.keys.toSet()),
+      ).thenAnswer((_) async => items1And3ByIds);
+      final maybeResult = await source.getItems(details);
       expect(
         maybeResult,
         ReadListResult<TestModel>.fromList(
-          [item, item2],
+          items1And3ByIds.values.toList(),
           details,
           {},
           TestModel.bindings.getId,
@@ -558,171 +272,230 @@ void main() {
     });
 
     test('return no items from custom filter if empty', () async {
-      await mem.setItems([item, item2], abcDetails);
-
       final xyzDetails = RequestDetails(
         filter: const MsgStartsWithFilter('xyz'),
       );
-      await notInCache(mem, [item, item2], requests: [details, xyzDetails]);
-    });
+      when(
+        () => mockRequestCache.read(xyzDetails.cacheKey),
+      ).thenAnswer((_) async => null);
 
-    test('return no items from filter if empty', () async {
-      await mem.setItems([item, item2], details);
-      await notInCache(mem, [item, item2], requests: [abcDetails]);
-    });
-
-    test('return items', () async {
-      await mem.setItems([item, item2], details);
-      final maybeResult = await mem.getItems(details);
-      final result = maybeResult as ReadListSuccess;
+      final maybeResult = await source.getItems(xyzDetails);
+      expect(maybeResult, isA<ReadListSuccess<TestModel>>());
       expect(
-        result,
-        ReadListResult<TestModel>.fromList(
-          [item, item2],
-          details,
-          {},
-          TestModel.bindings.getId,
+        (maybeResult as ReadListSuccess<TestModel>).itemsOrRaise(),
+        isEmpty,
+      );
+    });
+
+    test(
+      'return no items from filter when other requests have items',
+      () async {
+        when(
+          () => mockRequestCache.read(details.cacheKey),
+        ).thenAnswer((_) async => items1And3ByIds.keys.toSet());
+        when(
+          () => mockItemsCache.multiRead(items1And3ByIds.keys.toSet()),
+        ).thenAnswer((_) async => items1And3ByIds);
+        when(
+          () => mockRequestCache.read(abcDetails.cacheKey),
+        ).thenAnswer((_) async => null);
+        final maybeResult = await source.getItems(abcDetails);
+        expect(maybeResult, isA<ReadListSuccess<TestModel>>());
+        expect(
+          (maybeResult as ReadListSuccess<TestModel>).itemsOrRaise(),
+          isEmpty,
+        );
+      },
+    );
+  });
+
+  group('LocalMemorySource.delete should', () {
+    test('delete items', () async {
+      when(
+        () => mockItemsCache.multiDelete(<String>{item.id!}),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer((_) async => <CacheKey, Set<String>>{});
+      when(
+        mockPaginatedRequestCache.readAll,
+      ).thenAnswer((_) async => <CacheKey, Set<String>>{});
+      await source.delete(item.id!, details);
+      verify(
+        () => mockItemsCache.multiDelete(<String>{item.id!}),
+      ).called(1);
+    });
+
+    test('delete items and delete empty pages', () async {
+      when(
+        () => mockItemsCache.multiDelete(<String>{item.id!}),
+      ).thenAnswer((_) async {});
+
+      // details points to just this item
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer(
+        (_) async => <CacheKey, Set<String>>{
+          details.cacheKey: {item.id!},
+        },
+      );
+
+      when(
+        mockPaginatedRequestCache.readAll,
+      ).thenAnswer((_) async => <CacheKey, Set<String>>{});
+
+      // Prepare deletion
+      when(
+        () => mockRequestCache.delete(details.cacheKey),
+      ).thenAnswer((_) async {});
+
+      await source.delete(item.id!, details);
+
+      // The item was deleted
+      verify(
+        () => mockItemsCache.multiDelete(<String>{item.id!}),
+      ).called(1);
+
+      // Confirm empty page was in fact dropped
+      verify(
+        () => mockRequestCache.delete(details.cacheKey),
+      ).called(1);
+    });
+
+    test('delete items and persist non-empty pages', () async {
+      when(
+        () => mockItemsCache.multiDelete(<String>{item.id!}),
+      ).thenAnswer((_) async {});
+
+      // details points to just this item
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer(
+        (_) async => <CacheKey, Set<String>>{
+          details.cacheKey: {item.id!, item2.id!},
+        },
+      );
+
+      when(
+        mockPaginatedRequestCache.readAll,
+      ).thenAnswer((_) async => <CacheKey, Set<String>>{});
+
+      // Prepare deletion
+      when(
+        () => mockRequestCache.delete(details.cacheKey),
+      ).thenAnswer((_) async {});
+
+      // Prepare update
+      when(
+        () => mockRequestCache.write(details.cacheKey, {item2.id!}),
+      ).thenAnswer((_) async {});
+
+      await source.delete(item.id!, details);
+
+      // The item was deleted
+      verify(
+        () => mockItemsCache.multiDelete(<String>{item.id!}),
+      ).called(1);
+
+      // But deletion is never called
+      verifyNever(() => mockRequestCache.delete(details.cacheKey));
+
+      // Instead, update is called
+      verify(
+        () => mockRequestCache.write(details.cacheKey, {item2.id!}),
+      ).called(1);
+    });
+
+    test('delete items clear pagination clusters', () async {
+      when(
+        () => mockItemsCache.multiDelete(<String>{item.id!, item2.id!}),
+      ).thenAnswer((_) async {});
+
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer(
+        (_) async => <CacheKey, Set<String>>{
+          paginationDetails.cacheKey: {item.id!, item2.id!},
+        },
+      );
+
+      // Set up a pagination cluster that will be empty after `item` is removed
+      when(mockPaginatedRequestCache.readAll).thenAnswer(
+        (_) async => {
+          paginationDetails.noPaginationCacheKey: {paginationDetails.cacheKey},
+        },
+      );
+      // Prepare deletion of the pagination cluster
+      when(
+        () => mockPaginatedRequestCache.delete(
+          paginationDetails.noPaginationCacheKey,
+        ),
+      ).thenAnswer((_) async {});
+
+      // Prepare deletion
+      when(
+        () => mockRequestCache.delete(paginationDetails.cacheKey),
+      ).thenAnswer((_) async {});
+
+      await source.deleteIds(<String>{item.id!, item2.id!});
+
+      // The items were deleted
+      verify(
+        () => mockItemsCache.multiDelete(<String>{item.id!, item2.id!}),
+      ).called(1);
+
+      // The pagination cluster was deleted
+      verify(
+        () => mockPaginatedRequestCache.delete(
+          paginationDetails.noPaginationCacheKey,
+        ),
+      ).called(1);
+    });
+
+    test('delete items leave non-empty pagination clusters', () async {
+      when(
+        () => mockItemsCache.multiDelete(<String>{item.id!, item2.id!}),
+      ).thenAnswer((_) async {});
+
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer(
+        (_) async => <CacheKey, Set<String>>{
+          paginationDetails.cacheKey: {item.id!, item2.id!},
+          page2Details.cacheKey: {item3.id!},
+        },
+      );
+
+      // Set up a pagination cluster that will be non-empty after  items are
+      // removed
+      when(mockPaginatedRequestCache.readAll).thenAnswer(
+        (_) async => {
+          paginationDetails.noPaginationCacheKey: {
+            paginationDetails.cacheKey,
+            page2Details.cacheKey,
+          },
+        },
+      );
+      // Prepare deletion
+      when(
+        () => mockRequestCache.delete(paginationDetails.cacheKey),
+      ).thenAnswer((_) async {});
+
+      await source.deleteIds(<String>{item.id!, item2.id!});
+
+      // The items were deleted
+      verify(
+        () => mockItemsCache.multiDelete(<String>{item.id!, item2.id!}),
+      ).called(1);
+
+      // The pagination cluster was left alone
+      verifyNever(
+        () => mockPaginatedRequestCache.delete(
+          paginationDetails.noPaginationCacheKey,
         ),
       );
     });
-
-    test('honor pagination', () async {
-      final item = TestModel.randomId();
-      final item2 = TestModel.randomId();
-      await mem.setItems([item, item2], page2Details);
-
-      await fullyContains(mem, [item, item2], requests: [page2Details]);
-      await notInCache(
-        mem,
-        [item, item2],
-        requests: [details, paginationDetails],
-      );
-    });
   });
-
-  group('LocalMemorySource.requestCache should', () {
-    setUp(() {
-      mem = LocalSource<TestModel>(
-        InMemoryItemsPersistence<TestModel>(TestModel.bindings.getId),
-        InMemoryCachePersistence(),
-        bindings: TestModel.bindings,
-      );
-    });
-
-    test('clearForRequest removes from request cache', () async {
-      await mem.setItems([item, item2], details);
-
-      final detailsWithFilter = RequestDetails(
-        filter: const MsgStartsWithFilter('asdf'),
-      );
-      await mem.setItems([item], detailsWithFilter);
-
-      final detailsWithFilter2 = RequestDetails(
-        filter: const MsgStartsWithFilter('xyz'),
-      );
-      await mem.setItems([item2], detailsWithFilter2);
-
-      await fullyContains(mem, [item], requests: [details, detailsWithFilter]);
-      await notInCache(mem, [item], requests: [detailsWithFilter2]);
-      await fullyContains(
-        mem,
-        [item2],
-        requests: [details, detailsWithFilter2],
-      );
-      await notInCache(mem, [item2], requests: [detailsWithFilter]);
-
-      await mem.clearForRequest(detailsWithFilter);
-
-      await fullyContains(mem, [item], requests: [details]);
-      await notInCache(
-        mem,
-        [item],
-        requests: [detailsWithFilter, detailsWithFilter2],
-      );
-      await fullyContains(
-        mem,
-        [item2],
-        requests: [details, detailsWithFilter2],
-      );
-      await notInCache(mem, [item2], requests: [detailsWithFilter]);
-    });
-
-    test('clearForRequest removes all pages', () async {
-      await mem.setItems([item, item2], details);
-      await mem.setItems([item], paginationDetails);
-      await mem.setItems([item2], page2Details);
-
-      await fullyContains(mem, [item], requests: [details, paginationDetails]);
-      await notInCache(mem, [item], requests: [page2Details]);
-      await fullyContains(mem, [item2], requests: [details, page2Details]);
-      await notInCache(mem, [item2], requests: [paginationDetails]);
-
-      await mem.clearForRequest(paginationDetails);
-
-      await fullyContains(mem, [item, item2], requests: [details]);
-      await notInCache(
-        mem,
-        [item, item2],
-        requests: [paginationDetails, page2Details],
-      );
-    });
-  });
-}
-
-Future<void> fullyContains(
-  LocalSource<TestModel> mem,
-  List<TestModel> items, {
-  required List<RequestDetails> requests,
-}) async {
-  for (final item in items) {
-    expect(item.id, isNotNull);
-    expect(
-      (await mem.getById(item.id!, details)).getOrRaise().item,
-      equals(item),
-    );
-
-    if (requests.isEmpty) {
-      // No passed cacheKeys means this item is not expected to be in any search
-      // results, so let's confirm tha.
-      expect(
-        (await mem.getItems(details)).getOrRaise().items,
-        isNot(contains(item)),
-      );
-    } else {
-      for (final request in requests) {
-        expect(
-          (await mem.getItems(request)).getOrRaise().items,
-          contains(item),
-        );
-      }
-    }
-  }
-}
-
-Future<void> notInCache(
-  LocalSource<TestModel> mem,
-  List<TestModel> items, {
-  List<RequestDetails> requests = const [],
-  bool containsAtAll = true,
-}) async {
-  for (final item in items) {
-    expect(item.id, isNotNull);
-    final maybeItem = (await mem.getById(item.id!, details)).getOrRaise().item;
-    if (containsAtAll) {
-      expect(maybeItem, isNotNull);
-    } else {
-      expect(maybeItem, isNull);
-    }
-
-    final requestsToEvaluate = requests.isNotEmpty ? requests : [details];
-
-    for (final request in requestsToEvaluate) {
-      expect(
-        (await mem.getItems(request)).getOrRaise().items,
-        isNot(contains(item)),
-      );
-    }
-  }
 }
 
 final Matcher _throwsAssertionError = throwsA(isA<AssertionError>());

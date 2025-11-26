@@ -13,3 +13,6 @@ publish_data_layer_hive_dry:
 
 publish_data_layer_hive:
 	cd packages/data_layer_hive && dart pub publish
+
+example:
+	cd example && flutter run -d chrome

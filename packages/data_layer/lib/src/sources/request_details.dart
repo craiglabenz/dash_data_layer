@@ -15,7 +15,7 @@ class RequestDetails extends Equatable {
     this.filter,
     this.requestType = defaultRequestType,
     this.pagination,
-    this.shouldOverwrite = defaultShouldOverwrite,
+    this.ttl,
   });
 
   /// Read-friendly constructor for [RequestDetails].
@@ -32,14 +32,21 @@ class RequestDetails extends Equatable {
   /// Write-friendly constructor for [RequestDetails]. Write [RequestDetails]
   /// surprisingly contain pagination details for the purposes of write-through
   /// caches.
+  ///
+  /// To set caches to auto-expire, supply a non-null value for [ttl],
+  /// which will cause [LocalSource] objects to stop returning this data after
+  /// that amount of time. This is a write-time-only operation; reads cannot
+  /// determine their desired TTL. If you suspect that a read has sensitive
+  /// enough needs to tighten its acceptable TTL, consider using
+  /// `RequestType.refresh` instead to fetch the latest data from the server.
   factory RequestDetails.write({
     RequestType requestType = defaultRequestType,
-    bool shouldOverwrite = defaultShouldOverwrite,
     Pagination? pagination,
+    Duration? ttl,
   }) => RequestDetails(
     requestType: requestType,
-    shouldOverwrite: shouldOverwrite,
     pagination: pagination,
+    ttl: ttl,
   );
 
   /// Serializes this request information to send to the server.
@@ -47,17 +54,19 @@ class RequestDetails extends Equatable {
     filter: data['filter'] != null
         ? Filter.fromJson(data['filter']! as Json)
         : null,
-    shouldOverwrite: data['shouldOverwrite']! as bool,
     pagination: Pagination.fromJson(data['pagination']! as Json),
     requestType: RequestType.values.byName(data['requestType']! as String),
+    ttl: data['ttl'] != null
+        ? Duration(microseconds: data['ttl']! as int)
+        : null,
   );
 
   /// Serializes this request information to send to the server.
   Json toJson() => <String, Object?>{
     'filter': filter?.toJson(),
     'requestType': requestType.name,
-    'shouldOverwrite': shouldOverwrite,
     'pagination': pagination?.toJson(),
+    'ttl': ttl?.inMicroseconds,
   };
 
   /// {@macro RequestType}
@@ -66,28 +75,29 @@ class RequestDetails extends Equatable {
   /// Optional [Filter] for this request.
   final Filter? filter;
 
-  /// Whether this request should overwrite existing data.
-  final bool shouldOverwrite;
-
   /// Pagination details for this data request.
   final Pagination? pagination;
 
   /// Default [Pagination] details.
-  final defaultPagination = Pagination.page(1);
+  static const defaultPagination = Pagination._(
+    page: 1,
+    pageSize: Pagination.defaultPageSize,
+    cursor: null,
+  );
 
   /// Default [RequestType].
   static const RequestType defaultRequestType = RequestType.global;
 
-  /// Default value for [shouldOverwrite].
-  static const defaultShouldOverwrite = true;
-
   @override
   List<Object?> get props => [
     requestType,
-    shouldOverwrite,
     filter?.hashCode,
     pagination,
+    ttl,
   ];
+
+  /// Duration after which the data should be considered stale.
+  final Duration? ttl;
 
   /// Cache-key without any pagination, used to group up paginated requests
   /// together in a [LocalSource]'s cache.
@@ -130,16 +140,16 @@ class RequestDetails extends Equatable {
   /// Equivalent [RequestDetails] but for the removal of a global or refresh
   /// [RequestType].
   RequestDetails localCopy() => RequestDetails(
-    requestType: RequestType.local,
+    requestType: .local,
     pagination: pagination,
     filter: filter,
-    shouldOverwrite: shouldOverwrite,
+    ttl: ttl,
   );
 
   @override
   String toString() =>
       'RequestDetails(requestType: $requestType, filter: '
-      '$filter, pagination: $pagination)';
+      '$filter, pagination: $pagination, ttl: $ttl)';
 
   /// Asserts that this instane [isEmpty]. The lone string parameter is useful
   /// for easily seeing where this assertion was called.
@@ -162,26 +172,43 @@ class RequestDetails extends Equatable {
 /// {@endtemplate}
 class Pagination extends Equatable {
   /// {@macro Pagination}
-  const Pagination({required this.pageSize, required this.page});
+  const Pagination._({
+    required this.pageSize,
+    required this.page,
+    required this.cursor,
+  });
 
-  /// Convenience constructor.
+  /// Page-style pagination.
   ///
   /// {@macro Pagination}
   factory Pagination.page(int page, {int pageSize = defaultPageSize}) =>
-      Pagination(pageSize: pageSize, page: page);
+      Pagination._(pageSize: pageSize, page: page, cursor: null);
+
+  /// Cursor-style pagination.
+  ///
+  /// {@macro Pagination}
+  factory Pagination.cursor(
+    String cursor, {
+    int pageSize = defaultPageSize,
+  }) => Pagination._(pageSize: pageSize, page: null, cursor: cursor);
 
   /// Deserializes a [Pagination] object.
-  factory Pagination.fromJson(Json data) => Pagination(
-    page: data['page']! as int,
-    pageSize: data['pageSize']! as int,
+  factory Pagination.fromJson(Json data) => Pagination._(
+    page: data['page'] as int?,
+    pageSize: data['pageSize'] as int?,
+    cursor: data['cursor']! as String?,
   );
 
   /// Maximum number of records this data request should contain.
-  final int pageSize;
+  final int? pageSize;
 
   /// Page number of this request. Returned data is assumed to skip
   /// "(page - 1) * pageSize" earlier records.
-  final int page;
+  final int? page;
+
+  /// Cursor-style pagination token. This should indicate the last item of all
+  /// loaded data.
+  final String? cursor;
 
   /// Default number of records to include in a page.
   static const defaultPageSize = 20;
@@ -190,17 +217,21 @@ class Pagination extends Equatable {
   List<Object?> get props => [pageSize, page];
 
   /// Variant of [hashCode] with persistent Ids across application launches.
-  CacheKey get cacheKey => '$pageSize-$page';
+  CacheKey get cacheKey =>
+      '$pageSize-${page ?? "nopage"}-${cursor ?? "nocursor"}';
 
   @override
-  String toString() => 'Pagination(pageSize: $pageSize, page: $page)';
+  String toString() =>
+      'Pagination(pageSize: $pageSize, page: $page, cursor: $cursor)';
 
   /// Serializes this pagination.
   Json toJson() => <String, Object?>{
     'page': page,
     'pageSize': pageSize,
+    'cursor': cursor,
   };
 
   /// Serializes this pagination for use in a request.
-  Params toParams() => toJson().cast<String, String>();
+  Params toParams() => (toJson()..removeWhere((key, value) => value == null))
+      .cast<String, String>();
 }

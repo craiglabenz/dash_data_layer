@@ -1,3 +1,4 @@
+import 'package:data_layer/data_layer.dart';
 import 'package:example/click.dart';
 import 'package:example/hive/hive_registrar.g.dart';
 import 'package:example/click_repository.dart';
@@ -62,6 +63,9 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   late ClickRepository _clickRepository;
 
+  // If true, newly added clicks will expire in 5 seconds.
+  bool _isExpiring = false;
+
   List<Click> clicks = [];
 
   @override
@@ -74,6 +78,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _incrementCounter() async {
     await _clickRepository.setItem(
       Click(delta: 1, clickedAt: DateTime.now()),
+      RequestDetails(ttl: _isExpiring ? const Duration(seconds: 5) : null),
     );
     _refreshClicks();
   }
@@ -92,13 +97,6 @@ class _MyHomePageState extends State<MyHomePage> {
       0,
       (previousValue, element) => previousValue + element.delta,
     );
-    const heavyShadows = [
-      BoxShadow(
-        color: Color(0x88000000),
-        offset: Offset(0, 1),
-        blurRadius: 3,
-      ),
-    ];
     const lightShadows = [
       BoxShadow(
         color: Color(0x44000000),
@@ -107,26 +105,55 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     ];
     return Scaffold(
-      headers: [AppBar(title: Text(widget.title))],
+      headers: [
+        AppBar(
+          title: Text(widget.title),
+          trailing: [
+            IconButton.ghost(
+              icon: Icon(Icons.refresh),
+              onPressed: _refreshClicks,
+            ),
+          ],
+        ),
+      ],
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: ListView(
           children: [
-            Card(
-              boxShadow: heavyShadows,
-              child: Column(
-                mainAxisAlignment: .start,
-                crossAxisAlignment: .center,
-                children: [
-                  Center(
-                    child: Text('You pressed the button $count times').p,
-                  ),
-                  PrimaryButton(
-                    onPressed: _incrementCounter,
-                    child: Text('Increment'),
-                  ),
-                ],
-              ),
+            Row(
+              mainAxisAlignment: .spaceAround,
+              children: [
+                Column(
+                  mainAxisAlignment: .start,
+                  crossAxisAlignment: .center,
+                  children: [
+                    Center(
+                      child: Text('You pressed the button $count times').p,
+                    ),
+                    PrimaryButton(
+                      onPressed: _incrementCounter,
+                      child: Text('Increment'),
+                    ),
+                  ],
+                ),
+                Column(
+                  mainAxisAlignment: .start,
+                  crossAxisAlignment: .center,
+                  children: [
+                    Center(
+                      child: Text('Expire clicks in 5 seconds?').p,
+                    ),
+                    Switch(
+                      value: _isExpiring,
+                      onChanged: (value) {
+                        setState(() {
+                          _isExpiring = !_isExpiring;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
             ...clicks.map<Widget>(
               (click) => Padding(
