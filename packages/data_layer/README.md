@@ -8,7 +8,7 @@ Pure Dart package for isolating data layer abstractions from the rest of your ap
 
 Correctly managing data is one of the most important parts of any app and failure to separate it from state management plays a significant role in complicating one's codebase.
 
-Furthe, naive approaches like always loading data from the server every time you need it is easy, but not performant or offline-friendly. This suggests *caching* data; but as cache invalidation is one of the three hard problems in computer science, *there be dragons*.
+Further, naive approaches like always loading data from the server every time you need it are easy, but not performant or offline-friendly. This suggests *caching* data; but as cache invalidation is one of the three hard problems in computer science, *there be dragons*.
 
 `pkg:data_layer` aims to provide a simple, yet powerful, way to manage data in your app.
 
@@ -68,7 +68,7 @@ Add the following to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  data_layer: ^0.0.1-beta.4
+  data_layer: latest
 ```
 
 ## Data layer principles
@@ -168,7 +168,7 @@ SourceList(
 
 Multiple local sources are only useful if one is durable for true offline caching, like sqlite3 or Hive, but deemed not fast enough for immediate reads. In general, this is probably not the case and you should consider using a single local source first.
 
-Consider an empty `SourceList` with a single in memory local`Source` and a single RESTful API-powered remote `Source`, like the above. Your first action may be to read data, like so:
+Consider an empty `SourceList` with a single in memory local `Source` and a single RESTful API-powered remote `Source`, like the above. Your first action may be to read data, like so:
 
 ```dart
 final users = await userRepository.getItems();
@@ -176,7 +176,7 @@ final users = await userRepository.getItems();
 
 First, the `SourceList` will attempt to read data from its local sources. If no data is found, it will then attempt to read data from its remote sources. If data is found in a remote `Source`, it will be written to the local `Source`.
 
-Critically, this cached data is tied to the exact request that made yielded it. If you make a different request like below, the local `Source` will not have a cache hit and the `SourceList` will once again continue on to its remote `Source`.
+Critically, this cached data is tied to the exact request that yielded it. If you make a different request, like below, the local `Source` will not have a cache hit and the `SourceList` will once again continue on to its remote `Source`.
 
 ```dart
 /// Not a cache hit - will once again request data from the server
@@ -193,7 +193,7 @@ Next, you may want to write data, like so:
 final savedUser = await userRepository.setItem(User(name: 'John Doe'));
 ```
 
-The `SourceList` will detect a missing `id` value and will immediately write this value to the server for `id` generation. At which point, the returned value will be saved to the local `Source` and returned to the caller. Assuming the server generated an `id` of `abc`, the following call would yield a cache hit and not request the data from the server:
+The `SourceList` will detect a missing `id` value and immediately write this value to the server for `id` generation. At which point, the returned value will be saved to the local `Source` and returned to the caller. Assuming the server generated an `id` of `"abc"`, the following call would yield a cache hit and not request the data from the server:
 
 ```dart
 final johnDoe = await userRepository.getById('abc');
@@ -220,7 +220,7 @@ final activeUsers = await userRepository.getItems(
   RequestDetails(
     filter: ActiveUsersFilter(),
     pagination: Pagination.page(1),
-    requestType: RequestType.refresh,
+    requestType: .refresh,
   ),
 );
 ```
@@ -252,12 +252,11 @@ final userBindings = CreationBindings<User>(
 
 Data is loaded using the standard methods on your `Repository`:
 
-- `getById(String id)`: Fetches a single item.
-- `getByIds(Set<String> ids)`: Fetches multiple items by ID.
-- `getItems({RequestDetails? details, bool allLocal = false})`: Fetches a list of items, optionally filtered or paginated.
-   If `allLocal` is true, all local data is returned regardless of any request-caching information.
+- `getById(String id, [RequestDetails? details])`: Fetches a single item.
+- `getByIds(Set<String> ids, [RequestDetails? details])`: Fetches multiple items by ID.
+- `getItems({RequestDetails? details})`: Fetches a list of items, optionally filtered or paginated.
 
-You can customize the request using `RequestDetails`:
+You can customize any of these requests using `RequestDetails`:
 
 ```dart
 final details = RequestDetails(
@@ -266,14 +265,15 @@ final details = RequestDetails(
 final users = await userRepository.getItems(details);
 ```
 
-The default `RequestType` is `.global`, which considers the first data source to return data to be the "correct" data. This means
-that the default behavior is to read and honor locally cached data.
+The default `RequestType` is `.global`, which considers the first data source to return data to be the "correct" data. This means that the default behavior is to read and honor locally cached data.
 
 Other `RequestType` values are:
 
 - `.refresh`: Bypasses local sources and only considers remote sources.
-- `.local`: Only considers local sources.
-- `.allLocal`: Returns all local data regardless of any request-caching information.
+- `.local`: Only considers local sources - cache hit or nothing!
+- `.allLocal`: Returns all local data regardless of any request-caching information. Also, does not consider remote sources.
+
+> Note: The difference between `.local` and `.allLocal` is that `.local` is request-based and will only return data that was specifically returned by a remote source for that exact request. Meanwhile, `.allLocal` will return all local data regardless of any request-caching information.
 
 ## Filtering data
 
@@ -287,10 +287,7 @@ final details = RequestDetails(
 final users = await userRepository.getItems(details);
 ```
 
-It is the job of any remote `Source` to apply this filter to its request in `getItems`. For example, the `ApiSource`
-calls its filters `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the
-querystring of the request. Naturally, it is assumed that the remote server will apply the filter to any database queries
-it executes.
+It is the job of any remote `Source` to apply this filter to its request in `getItems`. For example, the `ApiSource` calls its filters `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server will apply the filter to any database queries it executes.
 
 Filters and pagination can be used together.
 
@@ -331,10 +328,7 @@ final details = RequestDetails(
 final users = await userRepository.getItems(details);
 ```
 
-It is the job of any remote `Source` to apply this pagination to its request in `getItems`. For example, the `ApiSource`
-calls its pagination `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the
-querystring of the request. Naturally, it is assumed that the remote server will apply the pagination to any database queries
-it executes.
+It is the job of any remote `Source` to apply this pagination to its request in `getItems`. For example, the `ApiSource` calls its pagination `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server will apply the pagination to any database queries it executes.
 
 Filters and pagination can be used together.
 
@@ -352,9 +346,7 @@ The `RequestDetails` fields included in this critical `md5` hash are only `filte
 
 Understanding how `pkg:data_layer` caches data is important for managing your application's performance.
 
-Data is cached on a per-request basis. This means that the results from a request with one set of parameters can never
-lead to cache hit for a request with different parameters (even to the same `Repository`). Consider the following scenario
-which begins with entirely empty caches and moves through multiple requests from different parts of your application:
+Data is cached on a per-request basis. This means that the results from a request with one set of parameters can never lead to cache hit for a request with different parameters (even to the same `Repository`). Consider the following scenario which begins with entirely empty caches and moves through multiple requests from different parts of your application:
 
 ```dart
 final activeUsersRequestDetails = RequestDetails(
@@ -363,30 +355,35 @@ final activeUsersRequestDetails = RequestDetails(
   filter: UserFilter(isActive: true),
 );
 
-/// Loads `users` from the server and caches their information in any `LocalSource` objects.
-/// Note that global requests like this are risky and will fetch as much data as your
-/// server will return in a single response, and are thus only safe for small data sets.
-/// If your server automatically paginates requests (which is smart), this `Repository` will not
-/// know about that pagination and will potentially cause bugs. Read on for details about how to
-/// handle pagination.
+/// Loads `users` from the server and caches their information in any
+/// `LocalSource` objects. Note that global requests like this are risky and
+/// will fetch as much data as your server will return in a single response, and
+/// are thus only safe for small data sets.
+///
+/// If your server automatically paginates requests (which is smart), this
+/// `Repository` will not know about that pagination, because it was not
+/// specified in the `RequestDetails` object, and will potentially cause bugs.
+/// Read on for details about how to intentionally handle pagination.
 final users = await userRepository.getItems(activeUsersRequestDetails);
 
-/// Some time later, elsewhere, using the same `Repository`, you request the same data (as indicated
-/// by using the same `RequestDetails` object). This request will be considered a cache hit and all
-/// records will be returned from local persistence.
+/// Some time later, elsewhere, using the same `Repository`, you request the
+/// same data (as indicated by using the same `RequestDetails` object). This
+/// request will be considered a cache hit and all records will be returned from
+/// local persistence.
 final users = await userRepository.getItems(activeUsersRequestDetails);
 
-/// Elsewhere, load users by Ids. Any users with Ids in the set are loaded from local persistence if possible.
-/// Any users with Ids not in the set are fetched from remote sources. The `SourceList` class handles
-/// this logic on your behalf.
+/// Elsewhere, load users by Ids. Any users with Ids in the set are loaded from
+/// local persistence if possible. Any users with Ids not in the set are fetched
+/// from remote sources. The `SourceList` class handles this logic on your behalf.
 final usersById = await userRepository.getByIds(
   {'1', '2', '3'},
   // RequestDetails is optional when calling `getByIds` or `getById`, and if
   // supplied, MUST NOT have `filter` or `pagination` values.
 );
 
-/// Elsewhere, load a single user by Id. If this Id has been loaded before, it will be pulled from the local cache.
-/// If the Id has not been loaded before, it will be fetched from remote sources.
+/// Elsewhere, load a single user by Id. If this Id has been loaded before, it
+/// will be pulled from the local cache. If the Id has not been loaded before,
+/// it will be fetched from remote sources.
  final usersById = await userRepository.getById(
   '4',
   // RequestDetails is optional when calling `getByIds` or `getById`, and if
@@ -547,9 +544,7 @@ final apiSource = ApiSource<User>(
 
 ## Extending a Remote Source
 
-The `ApiSource` class is generic and should work for most RESTful APIs. However, if you need to handle
-non-standard response formats or complex batching logic, you can subclass `ApiSource`, or start from
-scratch by subclassing `Source`.
+The `ApiSource` class is generic and should work for most RESTful APIs. However, if you need to handle non-standard response formats or complex batching logic, you can subclass `ApiSource`, or start from scratch by subclassing `Source`.
 
 ```dart
 class MyCustomApiSource extends Source<User> {

@@ -84,11 +84,13 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _refreshClicks() {
-    _clickRepository.getItems(allLocal: true).then(
-      (items) {
-        setState(() => clicks = items);
-      },
-    );
+    _clickRepository
+        .getItems(details: RequestDetails(requestType: .allLocal))
+        .then(
+          (items) {
+            setState(() => clicks = items);
+          },
+        );
   }
 
   @override
