@@ -83,7 +83,7 @@ If you have a `Repository` which loads and caches `User` objects, it should prob
 
 Once you initialize a `Repository` for a single data type, that should be the preferred way of loading those records across your entire app. If, in some instances, you need an altered form of that data and cannot use your first `Repository`, you should create a new `Repository` for that altered form of the data.
 
-For example, imagine you have a very large data structure which is partially loaded on a list view and then only fully loaded on a detail view after a user selects one of your objects. You should consider having two repositories, `ListObjectRepository` and `DetailMyObjectRepository`, each with their own `SourceList` and sources.
+For example, imagine you have a very large data structure which is partially loaded on a list view and then only fully loaded on a detail view after a user selects one of your objects. You should consider having two repositories, `ListMyObjectRepository` and `DetailMyObjectRepository`, each with their own `SourceList` and sources.
 
 You should NOT create two different `UserRepository` objects simply because two areas of your app load different sets of users. Instead, lean on the `SourceList`'s request-based caching mechanisms to handle the filtering and pagination of your data from a single `UserRepository`.
 
