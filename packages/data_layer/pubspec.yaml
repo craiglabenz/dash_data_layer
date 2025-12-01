@@ -4,6 +4,10 @@ version: 0.0.1-beta.6
 repository: https://github.com/craiglabenz/dash_data_layer
 environment:
   sdk: ^3.10.0
+topics:
+  - caching
+  - persistence
+  - data
 
 # Add regular dependencies here.
 dependencies:

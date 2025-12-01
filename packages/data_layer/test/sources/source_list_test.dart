@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:data_layer/data_layer.dart';
+import 'package:data_layer/src/http.dart';
 import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
 

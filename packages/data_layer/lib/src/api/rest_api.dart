@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:data_layer/api.dart';
+import 'package:data_layer/src/http.dart';
 import 'package:data_layer/src/types.dart';
 import 'package:logging/logging.dart';
 
