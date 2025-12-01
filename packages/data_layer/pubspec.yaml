@@ -1,13 +1,13 @@
 name: data_layer
 description: Isolated data layer abstractions for Dart and Flutter apps
-version: 0.0.1-beta.6
+version: 0.0.1-beta.7
 repository: https://github.com/craiglabenz/dash_data_layer
 environment:
   sdk: ^3.10.0
 topics:
   - caching
   - persistence
-  - data
+  - data-layer
 
 # Add regular dependencies here.
 dependencies:
