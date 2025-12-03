@@ -63,10 +63,10 @@ enum Readiness {
 /// ```
 mixin ReadinessMixin<T> {
   /// Cache of whether this object is ready. Set by the completer.
-  Readiness status = Readiness.loading;
+  Readiness readiness = Readiness.loading;
 
   /// Returns `true` if this object has successfully achieved readiness.
-  bool get isReady => status == Readiness.ready;
+  bool get isReady => readiness == Readiness.ready;
 
   /// Returns `true` if this object has not yet successfully achieved readiness.
   bool get isNotReady => !isReady;
@@ -122,7 +122,7 @@ mixin ReadinessMixin<T> {
     _log.finest('Resetting readiness for $this');
     _readinessCompleter = Completer<T>();
     _hasCalledInitialize = false;
-    status = Readiness.loading;
+    readiness = Readiness.loading;
   }
 
   /// Marks this object as ready.
@@ -134,7 +134,43 @@ mixin ReadinessMixin<T> {
       );
     }
     _log.finest('Marking $this as ready with $obj');
-    status = Readiness.ready;
+    readiness = Readiness.ready;
     _readinessCompleter.complete(obj);
   }
+}
+
+/// Version of [ReadinessMixin] which is immediately ready. Use this for
+/// subclasses of interfaces which support readiness, but which do not
+/// themselves perform any initialization.
+mixin InstantlyReadyMixin on ReadinessMixin<void> {
+  @override
+  Readiness get readiness => Readiness.ready;
+  @override
+  set readiness(Readiness value) {
+    throw Exception('Cannot set readiness for InstantlyReadyMixin');
+  }
+
+  @override
+  bool isReady = true;
+
+  @override
+  bool isNotReady = false;
+
+  @override
+  void performInitialization() {
+    // Nothing to be done
+  }
+
+  @override
+  void initialize() {
+    // Nothing to be done
+  }
+
+  @override
+  void resetReadiness() {
+    // Nothing to be done
+  }
+
+  @override
+  Future<void> get ready => Future.value();
 }
