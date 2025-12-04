@@ -167,9 +167,9 @@ mixin InstantlyReadyMixin on ReadinessMixin<void> {
   }
 
   @override
-  void resetReadiness() {
-    // Nothing to be done
-  }
+  // ignore: must_call_super
+  void resetReadiness() =>
+      throw Exception('Cannot reset readiness for InstantlyReadyMixin');
 
   @override
   Future<void> get ready => Future.value();
