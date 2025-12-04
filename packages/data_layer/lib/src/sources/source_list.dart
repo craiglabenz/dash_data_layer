@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:data_layer/data_layer.dart';
 
 /// {@template SourceList}
@@ -13,7 +15,7 @@ import 'package:data_layer/data_layer.dart';
 /// control which sources are asked, which is helpful when you want to force a
 /// cache read or cache miss.
 /// {@endtemplate}
-class SourceList<T> extends DataContract<T> {
+class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   /// {@macro SourceList}
   SourceList({required this.sources, required this.bindings}) {
     for (final source in sources) {
@@ -287,6 +289,18 @@ class SourceList<T> extends DataContract<T> {
     }
     return DeleteSuccess<T>(details);
   }
+
+  @override
+  FutureOr<void> performInitialization() async {
+    final futures = <Future<dynamic>>[];
+    for (final source in sources) {
+      if (source is ReadinessMixin) {
+        futures.add((source as ReadinessMixin).ready);
+      }
+    }
+    await Future.wait(futures);
+    markReady(null);
+  }
 }
 
 /// Indicates whether a given [Source] was queried within a request, which is
@@ -296,18 +310,14 @@ class MatchedSource<T> {
 
   /// Flavor of [Source] that matched the given [RequestType]. This [Source]
   /// will be asked for the desired data.
-  factory MatchedSource.matched(Source<T> source) => MatchedSource._(
-    source: source,
-    matched: true,
-  );
+  factory MatchedSource.matched(Source<T> source) =>
+      MatchedSource._(source: source, matched: true);
 
   /// Flavor of [Source] that did not match the given [RequestType]. This
   /// [Source] will not be asked for the desired data and will only be able to
   /// cache the results of another [Source], if appropriate.
-  factory MatchedSource.unmatched(Source<T> source) => MatchedSource._(
-    source: source,
-    matched: false,
-  );
+  factory MatchedSource.unmatched(Source<T> source) =>
+      MatchedSource._(source: source, matched: false);
 
   /// {@macro Source}
   final Source<T> source;

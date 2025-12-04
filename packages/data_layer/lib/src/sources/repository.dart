@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:data_layer/data_layer.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
@@ -6,12 +8,10 @@ import 'package:meta/meta.dart';
 /// Data abstraction most likely to be exposed to other layers of the
 /// application. Subclasses of this are where domain-specific logic should live.
 /// {@endtemplate}
-class Repository<T> {
+class Repository<T> with ReadinessMixin<void> {
   /// {@macro repo}
   Repository(this.sourceList, [String? loggerName])
-    : _log = Logger(
-        loggerName ?? 'Repository<$T>',
-      );
+    : _log = Logger(loggerName ?? 'Repository<$T>');
 
   /// Data loader within a [Repository] which can cascade through a list of data
   /// sources, treating each as a write-through cache.
@@ -21,6 +21,7 @@ class Repository<T> {
 
   /// Loads an item by the given [id] if it exists.
   Future<T?> getById(String id, [RequestDetails? details]) async {
+    await ready;
     final result = await sourceList.getById(
       id,
       details ?? RequestDetails.read(),
@@ -40,6 +41,7 @@ class Repository<T> {
     Set<String> ids, [
     RequestDetails? details,
   ]) async {
+    await ready;
     final result = await sourceList.getByIds(
       ids,
       details ?? RequestDetails.read(),
@@ -59,9 +61,8 @@ class Repository<T> {
   /// Loads all items that match the given request [details], or the default
   /// [RequestDetails.read] object if not given.
 
-  Future<List<T>> getItems({
-    RequestDetails? details,
-  }) async {
+  Future<List<T>> getItems({RequestDetails? details}) async {
+    await ready;
     final result = await sourceList.getItems(details ?? RequestDetails.read());
     switch (result) {
       case ReadListSuccess<T>():
@@ -74,6 +75,7 @@ class Repository<T> {
   /// Persists the given item and returns the saved value if the write was
   /// successful.
   Future<T?> setItem(T item, [RequestDetails? details]) async {
+    await ready;
     final result = await sourceList.setItem(
       item,
       details ?? RequestDetails.write(),
@@ -87,10 +89,8 @@ class Repository<T> {
   }
 
   /// Persists all [items].
-  Future<List<T>> setItems(
-    Iterable<T> items, [
-    RequestDetails? details,
-  ]) async {
+  Future<List<T>> setItems(Iterable<T> items, [RequestDetails? details]) async {
+    await ready;
     final result = await sourceList.setItems(
       items,
       details ?? RequestDetails.write(),
@@ -104,17 +104,31 @@ class Repository<T> {
   }
 
   /// Removes the item associated with the given [id] from persistence.
-  Future<void> delete(String id, [RequestDetails? details]) =>
-      sourceList.delete(id, details ?? RequestDetails.write());
+  Future<void> delete(String id, [RequestDetails? details]) async {
+    await ready;
+    await sourceList.delete(id, details ?? RequestDetails.write());
+  }
 
   /// Clears all local data. Does not delete anything from any remote sources.
-  Future<void> clear() => sourceList.clear();
+  Future<void> clear() async {
+    await ready;
+    await sourceList.clear();
+  }
 
   /// Clears all local data cached against this request.
-  Future<void> clearForRequest(RequestDetails details) =>
-      sourceList.clearForRequest(details);
+  Future<void> clearForRequest(RequestDetails details) async {
+    await ready;
+    await sourceList.clearForRequest(details);
+  }
 
   /// Releases any open resources like stream subscriptions.
   @mustCallSuper
   void close() {}
+
+  @override
+  @mustCallSuper
+  FutureOr<void> performInitialization() async {
+    await sourceList.ready;
+    markReady(null);
+  }
 }

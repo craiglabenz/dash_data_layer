@@ -16,31 +16,48 @@ void main() {
         await repo.getById('also does not matter', emptyDetails),
         isA<TestModel>(),
       );
-    });
-    test('including getById', () async {
-      final (items, missingIds) = await repo.getByIds({
-        'also does not matter',
-      }, emptyDetails);
-      expect(items, isA<List<TestModel>>());
-      expect(missingIds, isA<Set<String>>());
-    });
-    test('including getItems', () async {
-      expect(
-        await repo.getItems(details: emptyDetails),
-        isA<List<TestModel>>(),
-      );
-    });
-    test('including setItem', () async {
-      expect(
-        await repo.setItem(obj, emptyDetails),
-        isA<TestModel>(),
-      );
-    });
-    test('including setItems', () async {
-      expect(
-        await repo.setItems([obj], emptyDetails),
-        isA<List<TestModel>>(),
-      );
-    });
+    }, timeout: const Timeout(Duration(seconds: 1)));
+    test(
+      'including getById with missingIds',
+      () async {
+        final (items, missingIds) = await repo.getByIds({
+          'also does not matter',
+        }, emptyDetails);
+        expect(items, isA<List<TestModel>>());
+        expect(missingIds, isA<Set<String>>());
+      },
+      timeout: const Timeout(Duration(seconds: 1)),
+    );
+
+    test(
+      'including getItems',
+      () async {
+        expect(
+          await repo.getItems(details: emptyDetails),
+          isA<List<TestModel>>(),
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 1)),
+    );
+    test(
+      'including setItem',
+      () async {
+        expect(
+          await repo.setItem(obj, emptyDetails),
+          isA<TestModel>(),
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 1)),
+    );
+    test(
+      'including setItems',
+      () async {
+        expect(
+          await repo.setItems([obj], emptyDetails),
+          isA<List<TestModel>>(),
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 1)),
+    );
   });
 }

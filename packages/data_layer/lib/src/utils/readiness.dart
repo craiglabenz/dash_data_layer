@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 
 final _log = Logger('Readiness');
 
@@ -19,12 +20,12 @@ enum Readiness {
 /// Setup can be synchronous or asynchronous, which should be transparent to
 /// any code using this class.
 ///
-/// To use [ReadinessMixin], implement [performInitialization] and then in
-/// other code which depends on this object's readiness, await the [ready]
-/// property.
+/// To use [ReadinessMixin] in one of your classes, implement
+/// [performInitialization] and then, when appropriate, call [markReady].
 ///
-/// [T] is the central object this resource produces once ready. If no such
-/// resource exists, choose `void`.
+/// To use a class which adds [ReadinessMixin], await the [ready] future, which
+/// returns a value of type [T]. [T] is the central object this resource
+/// produces once ready. If no such resource exists, choose `void`.
 ///
 /// Synchronous usage:
 /// ```dart
@@ -101,9 +102,7 @@ mixin ReadinessMixin<T> {
     _hasCalledInitialize = true;
     final initializationResult = performInitialization();
     if (initializationResult is Future<T>) {
-      unawaited(initializationResult.then(_markReady));
-    } else {
-      _markReady(initializationResult);
+      unawaited(initializationResult);
     }
   }
 
@@ -111,13 +110,14 @@ mixin ReadinessMixin<T> {
   /// any necessary initialization. Additionally, if there is a critical value
   /// that is required for the object to be ready, it should be returned from
   /// this method.
-  FutureOr<T> performInitialization();
+  FutureOr<void> performInitialization();
 
   /// Resets any established readiness, if for example a dependency of this
   /// object has also lost readiness.
   ///
   /// A common use case to call this method is for anything that marks itself
   /// ready once a user session is established; after that user logs out.
+  @mustCallSuper
   void resetReadiness() {
     _log.finest('Resetting readiness for $this');
     _readinessCompleter = Completer<T>();
@@ -126,7 +126,7 @@ mixin ReadinessMixin<T> {
   }
 
   /// Marks this object as ready.
-  void _markReady(T obj) {
+  void markReady(T obj) {
     if (_readinessCompleter.isCompleted) {
       throw Exception(
         'Redundantly marking $this ready when already ready. '

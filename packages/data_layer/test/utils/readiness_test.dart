@@ -8,9 +8,9 @@ class WrapperResource with ReadinessMixin<String> {
   final AsyncResource resource;
 
   @override
-  Future<String> performInitialization() async {
+  Future<void> performInitialization() async {
     await resource.ready;
-    return 'wrapper-ready';
+    markReady('wrapper-ready');
   }
 }
 
@@ -21,10 +21,10 @@ class AsyncResource with ReadinessMixin<String> {
   final String value;
 
   @override
-  Future<String> performInitialization() async {
+  Future<void> performInitialization() async {
     await Future<void>.delayed(Duration.zero);
     if (!shouldFail) {
-      return value;
+      markReady(value);
     } else {
       throw Exception('Failed to initialize');
     }
@@ -37,9 +37,9 @@ class SyncResource with ReadinessMixin<String> {
   final bool shouldFail;
 
   @override
-  String performInitialization() {
+  void performInitialization() {
     if (!shouldFail) {
-      return 'ready';
+      markReady('ready');
     } else {
       throw Exception('Failed to initialize');
     }
