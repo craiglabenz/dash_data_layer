@@ -93,6 +93,7 @@ class HiveCache<T> extends SourceCache<T> with ReadinessMixin<void> {
   Future<void> performInitialization() async {
     await hiveInit;
     _box = await _hive.openBox<T>(name);
+    markReady(null);
   }
 
   /// Opened Hive box.
