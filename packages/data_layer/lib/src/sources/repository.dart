@@ -131,4 +131,7 @@ class Repository<T> with ReadinessMixin<void> {
     await sourceList.ready;
     markReady(null);
   }
+
+  @override
+  String toString() => 'Repository<$T>';
 }

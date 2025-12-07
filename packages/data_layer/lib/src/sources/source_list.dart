@@ -301,6 +301,9 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     await Future.wait(futures);
     markReady(null);
   }
+
+  @override
+  String toString() => 'SourceList<$T>(sources: $sources)';
 }
 
 /// Indicates whether a given [Source] was queried within a request, which is
