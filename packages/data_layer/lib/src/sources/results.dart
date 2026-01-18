@@ -8,10 +8,6 @@ part 'results.freezed.dart';
 
 final _log = Logger('Results');
 
-//////////////////
-/// WRITE RESULTS
-//////////////////
-
 /// Explanations for why a write request may have failed.
 enum FailureReason {
   /// Write request failed because of a problem on the server.
@@ -19,9 +15,18 @@ enum FailureReason {
 
   /// Write request failed because of a problem with the client's request.
   badRequest,
+
+  /// Write request failed because of a connectivity issue.
+  connectivity,
 }
 
+//////////////////
+/// WRITE RESULTS
+//////////////////
+
 /// {@template WriteResult}
+/// Outcome of an attempted write operation. It may have succeeded, failed, or
+/// had no chance due to connectivity issues.
 /// {@endtemplate}
 @Freezed()
 sealed class WriteResult<T> with _$WriteResult<T> {
@@ -77,6 +82,8 @@ sealed class WriteResult<T> with _$WriteResult<T> {
 }
 
 /// {@template WriteListResult}
+/// Outcome of an attempted bulk write operation. It may have succeeded, failed,
+/// or had no chance due to connectivity issues.
 /// {@endtemplate}
 @Freezed()
 sealed class WriteListResult<T> with _$WriteListResult<T> {
@@ -126,17 +133,19 @@ sealed class WriteListResult<T> with _$WriteListResult<T> {
   };
 }
 
-//////////??///////
+///////////////////
 /// DELETE RESULTS
-////////////??/////
+///////////////////
 
-/// {@template WriteResult}
+/// {@template DeleteResult}
+/// Outcome of an attempted delete operation. It may have succeeded, failed, or
+/// had no chance due to connectivity issues.
 /// {@endtemplate}
 @Freezed()
 sealed class DeleteResult<T> with _$DeleteResult<T> {
   const DeleteResult._();
 
-  /// {@template BulkWriteSuccess}
+  /// {@template DeleteSuccess}
   /// Container for a bulk write request which did not encounter any errors.
   /// {@endtemplate}
   const factory DeleteResult.success(RequestDetails details) = DeleteSuccess;
@@ -182,6 +191,8 @@ sealed class DeleteResult<T> with _$DeleteResult<T> {
 /////////////////
 
 /// {@template ReadResult}
+/// Outcome of an attempted read operation. It may have succeeded, failed, or
+/// had no chance due to connectivity issues.
 /// {@endtemplate}
 @Freezed()
 sealed class ReadResult<T> with _$ReadResult<T> {
@@ -242,6 +253,8 @@ sealed class ReadResult<T> with _$ReadResult<T> {
 }
 
 /// {@template ReadListResult}
+/// Outcome of an attempted bulk read operation. It may have succeeded, failed,
+/// or had no chance due to connectivity issues.
 /// {@endtemplate}
 @Freezed()
 sealed class ReadListResult<T> with _$ReadListResult<T> {

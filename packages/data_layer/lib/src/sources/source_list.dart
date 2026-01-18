@@ -27,12 +27,24 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   SourceList({
     required this.sources,
     required this.bindings,
+    this.connectivityService,
+    this.retryPolicy,
     DateTime Function()? getTime,
   }) : _getTime = getTime {
     for (final source in sources) {
       if (!source.hasBindings) {
         source.bindings = bindings;
       }
+    }
+    if (retryPolicy != null) {
+      _retrySub = retryPolicy!.onRetryOperation().listen((operation) {});
+    }
+    if (connectivityService != null && retryPolicy != null) {
+      _connectivitySub = connectivityService!.listen((bool status) {
+        if (status) {
+          unawaited(retryPolicy!.onReconnected().then(_onReconnected));
+        }
+      });
     }
   }
 
@@ -41,12 +53,32 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   factory SourceList.empty(Bindings<T> bindings) =>
       SourceList(sources: [], bindings: bindings);
 
+  StreamSubscription<Operation<T>>? _retrySub;
+  StreamSubscription<bool>? _connectivitySub;
+
   /// {@macro Bindings}
   final Bindings<T> bindings;
 
   /// Iterable of data [Source] objects which this [SourceList] will use to load
   /// requested data.
   final List<Source<T>> sources;
+
+  /// Connectivity service for this [SourceList]. If this is supplied, then
+  /// operations which fail due to a device being offline are immediately
+  /// routed to the [RetryPolicy] class for triage.
+  ///
+  /// Because pkg:data_layer is a pure Dart package, capable of being used on
+  /// the server for loading data from other servers, this is a concept which
+  /// only truly applies to clients. As such, an implementation for
+  /// [ConnectivityService], which uses pkg:connectivity_plus, is provided
+  /// in pkg:data_layer_connectivity.
+  final ConnectivityService? connectivityService;
+
+  /// Retry policy for this [SourceList]. If this is supplied, then operations
+  /// which fail due to connectivity or server issues can be retried.
+  final RetryPolicy<T>? retryPolicy;
+
+  final Logger _log = Logger('SourceList<$T>');
 
   DateTime Function()? _getTime;
 
@@ -98,8 +130,65 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     }
   }
 
+  /// Checks connectivity if a [ConnectivityService] is provided. If the device
+  /// is offline...
+  ///
+  /// A no-op if no [ConnectivityService] is provided.
+  Future<void> checkConnectivity(RequestDetails details) async {
+    if (details.isLocal) {
+      // Local requests don't need connectivity.
+      return;
+    }
+    if (connectivityService != null) {
+      if (!await connectivityService!.isConnected) {
+        throw NoConnectivityException();
+      }
+    }
+  }
+
+  /// Invokes a callback function with retry logic.
+  Future<R> _guarded<R>(
+    Operation<T> operation,
+    Future<R> Function() fn,
+    R Function() connectivityFailureBuilder,
+  ) async {
+    try {
+      await checkConnectivity(operation.details);
+    } on NoConnectivityException {
+      _log.fine('Device is offline, storing $operation for retry');
+      await retryPolicy?.storeOperationForRetry(operation, .connectivity);
+      return connectivityFailureBuilder();
+    }
+    final result = await fn();
+    bool shouldRetry = false;
+    if (result is ReadFailure<T> && result.reason == .serverError) {
+      shouldRetry = true;
+    } else if (result is ReadListFailure<T> && result.reason == .serverError) {
+      shouldRetry = true;
+    } else if (result is WriteFailure<T> && result.reason == .serverError) {
+      shouldRetry = true;
+    } else if (result is WriteListFailure<T> && result.reason == .serverError) {
+      shouldRetry = true;
+    } else if (result is DeleteFailure<T> && result.reason == .serverError) {
+      shouldRetry = true;
+    }
+    if (shouldRetry) {
+      _log.fine('Server error, storing $operation for retry');
+      await retryPolicy?.storeOperationForRetry(operation, .serverError);
+    }
+    return result;
+  }
+
   @override
   Future<ReadResult<T>> getById(ReadOperation<T> operation) async {
+    return _guarded<ReadResult<T>>(
+      operation,
+      () => _getById(operation),
+      () => ReadFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<ReadResult<T>> _getById(ReadOperation<T> operation) async {
     operation.details.assertEmpty('SourceList<$T>.getById');
 
     final emptySources = <Source<T>>[];
@@ -139,7 +228,21 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   @override
   Future<ReadListResult<T>> getByIds(ReadByIdsOperation<T> operation) async {
+    return _guarded<ReadListResult<T>>(
+      operation,
+      () => _getByIds(operation),
+      () => ReadListFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<ReadListResult<T>> _getByIds(ReadByIdsOperation<T> operation) async {
     operation.details.assertEmpty('SourceList<$T>.getByIds');
+
+    try {
+      await checkConnectivity(operation.details);
+    } on NoConnectivityException {
+      return ReadListFailure<T>(.connectivity, 'The device is offline.');
+    }
 
     final items = <String, T>{};
     final pastSources = <Source<T>>[];
@@ -169,7 +272,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
           return sourceResult;
         case ReadListSuccess<T>():
           items.addAll(sourceResult.itemsMap);
-          // Mark which Source needs which items
+          // Mark which sources needs which items
           for (final pastSource in pastSources) {
             backfillMap.putIfAbsent(pastSource, () => <T>{});
             backfillMap[pastSource]!.addAll(sourceResult.items);
@@ -205,7 +308,8 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       if (!operation.details.isLocal && missingIds.isNotEmpty) {
         // Missing Ids at this point would mean that we tried to load data from
         // the server and still failed to pull in certain Ids. That means they
-        // don't exist anymore, and thus we can delete them.
+        // don't exist anymore, and thus we can delete them from any local
+        // caches.
         await pastSource.deleteIds(missingIds);
       }
     }
@@ -215,6 +319,14 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   @override
   Future<ReadListResult<T>> getItems(ReadListOperation<T> operation) async {
+    return _guarded<ReadListResult<T>>(
+      operation,
+      () => _getItems(operation),
+      () => ReadListFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<ReadListResult<T>> _getItems(ReadListOperation<T> operation) async {
     final emptySources = <Source<T>>[];
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) {
@@ -277,6 +389,20 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   @override
   Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
+    return _guarded<WriteResult<T>>(
+      operation,
+      () => _setItem(operation),
+      () => WriteFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<WriteResult<T>> _setItem(WriteOperation<T> operation) async {
+    try {
+      await checkConnectivity(operation.details);
+    } on NoConnectivityException {
+      return WriteFailure<T>(.connectivity, 'The device is offline.');
+    }
+
     T itemCopy = operation.item;
     for (final ms in getSources(
       requestType: operation.details.requestType,
@@ -309,6 +435,19 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   @override
   Future<WriteListResult<T>> setItems(WriteListOperation<T> operation) async {
+    return _guarded<WriteListResult<T>>(
+      operation,
+      () => _setItems(operation),
+      () => WriteListFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<WriteListResult<T>> _setItems(WriteListOperation<T> operation) async {
+    try {
+      await checkConnectivity(operation.details);
+    } on NoConnectivityException {
+      return WriteListFailure<T>(.connectivity, 'The device is offline.');
+    }
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) continue;
       final result = await ms.source.setItems(operation);
@@ -319,25 +458,21 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     return WriteListSuccess<T>(operation.items, details: operation.details);
   }
 
-  /// Calls clear on all [LocalSource]s.
-  Future<void> clear() async {
-    for (final s in sources) {
-      if (s is LocalSource) {
-        await (s as LocalSource<T>).clear();
-      }
-    }
-  }
-
-  /// Clears all local data cached against this request.
-  Future<void> clearForRequest(RequestDetails details) async {
-    for (final source in sources) {
-      if (source is! LocalSource) continue;
-      await (source as LocalSource<T>).clearForRequest(details);
-    }
-  }
-
   @override
   Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
+    return _guarded<DeleteResult<T>>(
+      operation,
+      () => _delete(operation),
+      () => DeleteFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<DeleteResult<T>> _delete(DeleteOperation<T> operation) async {
+    try {
+      await checkConnectivity(operation.details);
+    } on NoConnectivityException {
+      return DeleteFailure<T>(.connectivity, 'The device is offline.');
+    }
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) continue;
       final result = await ms.source.delete(operation);
@@ -360,12 +495,83 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     markReady(null);
   }
 
+  /// Calls clear on all [LocalSource]s.
+  Future<void> clear() async {
+    for (final s in sources) {
+      if (s is LocalSource) {
+        await (s as LocalSource<T>).clear();
+      }
+    }
+  }
+
+  /// Clears all local data cached against this request.
+  Future<void> clearForRequest(RequestDetails details) async {
+    for (final source in sources) {
+      if (source is! LocalSource) continue;
+      await (source as LocalSource<T>).clearForRequest(details);
+    }
+  }
+
+  Future<void> _onReconnected(List<Operation<T>> operations) async {
+    _log.fine('Reconnected, retrying ${operations.length} operations');
+    operations.forEach(_retryOperation);
+  }
+
+  Future<void> _retryOperation(Operation<T> operation) async {
+    switch (operation) {
+      case ReadOperation<T>():
+        unawaited(getById(operation.retry<ReadOperation<T>>()));
+      case ReadListOperation<T>():
+        unawaited(getItems(operation.retry<ReadListOperation<T>>()));
+      case ReadByIdsOperation<T>():
+        unawaited(getByIds(operation.retry<ReadByIdsOperation<T>>()));
+      case WriteOperation<T>():
+        unawaited(setItem(operation.retry<WriteOperation<T>>()));
+      case WriteListOperation<T>():
+        unawaited(setItems(operation.retry<WriteListOperation<T>>()));
+      case DeleteOperation<T>():
+        unawaited(delete(operation.retry<DeleteOperation<T>>()));
+    }
+  }
+
   /// Closes the [SourceList] and releases any resources it holds.
-  Future<void> close() async {}
+  Future<void> close() async {
+    await Future.wait([
+      _connectivitySub?.cancel() ?? Future<void>.value(),
+      _retrySub?.cancel() ?? Future<void>.value(),
+    ]);
+  }
 
   @override
   String toString() => 'SourceList<$T>(sources: $sources)';
 }
+
+// /// Variant of a [SourceList] which retries writes or deletes which fail due to
+// /// connectivity issues. Read requests are not scheduled to be retried by this
+// /// mechanism.
+// class OfflineRetriableSourceList<T> extends SourceList<T> {
+//   /// Creates an instance of [OfflineRetriableSourceList].
+//   OfflineRetriableSourceList({
+//     required super.sources,
+//     required super.bindings,
+//     required this.offlinePolicy,
+//     super.connectivityService,
+//   });
+
+//   /// Offline policy for this [SourceList]. If this is supplied, then writes
+//   /// and deletes that fail due to connectivity issues will be persisted
+//   /// locally and retried automatically based on the policy.
+//   final OfflinePolicy offlinePolicy;
+
+//   @override
+//   Future<WriteResult<T>> setItem(T item, RequestDetails details) async {
+//     final result = await super.setItem(item, details);
+//     if (result is WriteFailure<T> && result.reason == .connectivity) {
+//       offlinePolicy.saveOperation(result);
+//     }
+//     return result;
+//   }
+// }
 
 /// Indicates whether a given [Source] was queried within a request, which is
 /// used when during the write-through cache phase.

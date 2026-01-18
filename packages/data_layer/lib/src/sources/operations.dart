@@ -76,5 +76,5 @@ sealed class Operation<T> with _$Operation<T> {
   ) => _$OperationFromJson(json, fromJsonT);
 
   /// Increments the retry count of this operation.
-  Operation<T> retry() => copyWith(attemptNumber: attemptNumber + 1);
+  R retry<R>() => copyWith(attemptNumber: attemptNumber + 1) as R;
 }

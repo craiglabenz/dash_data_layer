@@ -15,6 +15,7 @@ class RequestDetails extends Equatable {
     this.filter,
     this.requestType = defaultRequestType,
     this.pagination,
+    this.shouldRetry = true,
     this.ttl,
   });
 
@@ -23,10 +24,12 @@ class RequestDetails extends Equatable {
     RequestType requestType = defaultRequestType,
     Filter? filter,
     Pagination? pagination,
+    bool shouldRetry = true,
   }) => RequestDetails(
     requestType: requestType,
     filter: filter,
     pagination: pagination,
+    shouldRetry: shouldRetry,
   );
 
   /// Write-friendly constructor for [RequestDetails]. Write [RequestDetails]
@@ -41,11 +44,13 @@ class RequestDetails extends Equatable {
   /// `RequestType.refresh` instead to fetch the latest data from the server.
   factory RequestDetails.write({
     RequestType requestType = defaultRequestType,
+    bool shouldRetry = true,
     Pagination? pagination,
     Duration? ttl,
   }) => RequestDetails(
     requestType: requestType,
     pagination: pagination,
+    shouldRetry: shouldRetry,
     ttl: ttl,
   );
 
@@ -68,6 +73,17 @@ class RequestDetails extends Equatable {
     'pagination': pagination?.toJson(),
     'ttl': ttl?.inMicroseconds,
   };
+
+  /// True if this request should be retried on connectivity issue or
+  /// server error.
+  ///
+  /// Retries are not triggered when requests are malformed and rejected with
+  /// 400-style responses.
+  ///
+  /// This field is not ever sent to the server, as it is a local detail. It is
+  /// also not used in the cache key, as it is operational and not a property
+  /// of the data being requested.
+  final bool shouldRetry;
 
   /// {@macro RequestType}
   final RequestType requestType;
@@ -93,6 +109,7 @@ class RequestDetails extends Equatable {
     requestType,
     filter?.hashCode,
     pagination,
+    shouldRetry,
     ttl,
   ];
 
@@ -164,6 +181,9 @@ class RequestDetails extends Equatable {
     RequestType.refresh => false,
     RequestType.global => false,
   };
+
+  /// True if this request will attempt to go off-device.
+  bool get isRemote => !isLocal;
 }
 
 /// {@template Pagination}
