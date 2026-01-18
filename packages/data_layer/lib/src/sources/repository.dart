@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:data_layer/data_layer.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
+import 'package:uuid/uuid.dart';
 
 /// {@template repo}
 /// Data abstraction most likely to be exposed to other layers of the
@@ -10,8 +11,14 @@ import 'package:meta/meta.dart';
 /// {@endtemplate}
 class Repository<T> with ReadinessMixin<void> {
   /// {@macro repo}
-  Repository(this.sourceList, [String? loggerName])
-    : _log = Logger(loggerName ?? 'Repository<$T>');
+  Repository(
+    this.sourceList, {
+    String? loggerName,
+    DateTime Function()? getTime,
+  }) : getTime = getTime ?? _defaultGetTime,
+       _log = Logger(loggerName ?? 'Repository<$T>') {
+    sourceList.getTime = this.getTime;
+  }
 
   /// Data loader within a [Repository] which can cascade through a list of data
   /// sources, treating each as a write-through cache.
@@ -19,12 +26,30 @@ class Repository<T> with ReadinessMixin<void> {
 
   late final Logger _log;
 
+  /// Generates a unique operation ID, which defaults to v7 to preserve
+  /// chronological ordering for logging and debugging purposes.
+  String generateOperationId() => const Uuid().v7();
+
+  /// Fallback for getting the current time, which defaults to the current
+  /// time in UTC. Override this by passing `getTime` to the constructor to
+  /// control the clock in tests.
+  static DateTime _defaultGetTime() => DateTime.now().toUtc();
+
+  /// {@template Repository.getTime}
+  /// Reads the wall clock to annotate operations.
+  /// {@endtemplate}
+  final DateTime Function() getTime;
+
   /// Loads an item by the given [id] if it exists.
   Future<T?> getById(String id, [RequestDetails? details]) async {
     await ready;
     final result = await sourceList.getById(
-      id,
-      details ?? RequestDetails.read(),
+      ReadOperation<T>(
+        operationId: generateOperationId(),
+        itemId: id,
+        details: details ?? RequestDetails.read(),
+        createdAt: getTime(),
+      ),
     );
     switch (result) {
       case ReadSuccess<T>():
@@ -43,8 +68,12 @@ class Repository<T> with ReadinessMixin<void> {
   ]) async {
     await ready;
     final result = await sourceList.getByIds(
-      ids,
-      details ?? RequestDetails.read(),
+      ReadByIdsOperation<T>(
+        operationId: generateOperationId(),
+        itemIds: ids,
+        details: details ?? RequestDetails.read(),
+        createdAt: getTime(),
+      ),
     );
     switch (result) {
       case ReadListSuccess<T>():
@@ -63,7 +92,13 @@ class Repository<T> with ReadinessMixin<void> {
 
   Future<List<T>> getItems({RequestDetails? details}) async {
     await ready;
-    final result = await sourceList.getItems(details ?? RequestDetails.read());
+    final result = await sourceList.getItems(
+      ReadListOperation(
+        operationId: generateOperationId(),
+        details: details ?? RequestDetails.read(),
+        createdAt: getTime(),
+      ),
+    );
     switch (result) {
       case ReadListSuccess<T>():
         return result.itemsOrRaise();
@@ -77,8 +112,12 @@ class Repository<T> with ReadinessMixin<void> {
   Future<T?> setItem(T item, [RequestDetails? details]) async {
     await ready;
     final result = await sourceList.setItem(
-      item,
-      details ?? RequestDetails.write(),
+      WriteOperation<T>(
+        operationId: generateOperationId(),
+        item: item,
+        details: details ?? RequestDetails.write(),
+        createdAt: getTime(),
+      ),
     );
     switch (result) {
       case WriteSuccess<T>():
@@ -92,8 +131,12 @@ class Repository<T> with ReadinessMixin<void> {
   Future<List<T>> setItems(Iterable<T> items, [RequestDetails? details]) async {
     await ready;
     final result = await sourceList.setItems(
-      items,
-      details ?? RequestDetails.write(),
+      WriteListOperation<T>(
+        operationId: generateOperationId(),
+        items: items,
+        details: details ?? RequestDetails.write(),
+        createdAt: getTime(),
+      ),
     );
     switch (result) {
       case WriteListSuccess<T>():
@@ -106,7 +149,14 @@ class Repository<T> with ReadinessMixin<void> {
   /// Removes the item associated with the given [id] from persistence.
   Future<void> delete(String id, [RequestDetails? details]) async {
     await ready;
-    await sourceList.delete(id, details ?? RequestDetails.write());
+    await sourceList.delete(
+      DeleteOperation<T>(
+        operationId: generateOperationId(),
+        itemId: id,
+        details: details ?? RequestDetails.write(),
+        createdAt: getTime(),
+      ),
+    );
   }
 
   /// Clears all local data. Does not delete anything from any remote sources.

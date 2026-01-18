@@ -4,6 +4,7 @@ import 'package:data_layer/src/http.dart';
 import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
 import '../models/test_model.dart';
+import 'operation_builders.dart';
 
 const respHeaders = <String, String>{
   HttpHeaders.contentTypeHeader: 'application/json',
@@ -47,7 +48,7 @@ void main() {
             );
           },
         );
-        final result = await src.getById('abc', RequestDetails());
+        final result = await src.getById(gro('abc', RequestDetails()));
         expect(result, isA<ReadSuccess<TestModel>>());
         expect(
           (result as ReadSuccess).item,
@@ -72,7 +73,7 @@ void main() {
             );
           },
         );
-        final result = await src.getById('abc', RequestDetails());
+        final result = await src.getById(gro('abc', RequestDetails()));
         expect(result, isA<ReadSuccess<TestModel>>());
         expect(
           (result as ReadSuccess).item,
@@ -98,7 +99,7 @@ void main() {
           },
           timer: BatchTimer(),
         );
-        final result = await src.getById('abc', RequestDetails());
+        final result = await src.getById(gro('abc', RequestDetails()));
         expect(result, isA<ReadSuccess<TestModel>>());
         expect(
           (result as ReadSuccess).item,
@@ -120,7 +121,7 @@ void main() {
             );
           },
         );
-        final result = await src.getById('abc', RequestDetails());
+        final result = await src.getById(gro('abc', RequestDetails()));
         expect(result, isA<ReadSuccess<TestModel>>());
         expect((result as ReadSuccess).item, null);
       },
@@ -146,7 +147,9 @@ void main() {
           );
         },
       );
-      final result = await src.getByIds({'abc', 'xyz'}, RequestDetails());
+      final result = await src.getByIds(
+        grido({'abc', 'xyz'}, RequestDetails()),
+      );
       expect(result, isA<ReadListSuccess<TestModel>>());
       final items = (result as ReadListSuccess).items;
       expect(items.first, const TestModel(id: 'abc', msg: 'amazing'));
@@ -171,7 +174,9 @@ void main() {
             );
           },
         );
-        final result = await src.getByIds({'abc', 'xyz'}, RequestDetails());
+        final result = await src.getByIds(
+          grido({'abc', 'xyz'}, RequestDetails()),
+        );
         expect(result, isA<ReadListSuccess<TestModel>>());
         final items = (result as ReadListSuccess).items;
         expect(items.first, const TestModel(id: 'abc', msg: 'amazing'));
@@ -195,7 +200,9 @@ void main() {
           );
         },
       );
-      final result = await src.getByIds({'abc', 'xyz'}, RequestDetails());
+      final result = await src.getByIds(
+        grido({'abc', 'xyz'}, RequestDetails()),
+      );
       expect(result, isA<ReadListSuccess<TestModel>>());
       final success = result as ReadListSuccess;
       final items = success.items;
@@ -213,7 +220,9 @@ void main() {
           );
         },
       );
-      final result = await src.getByIds({'abc', 'xyz'}, RequestDetails());
+      final result = await src.getByIds(
+        grido({'abc', 'xyz'}, RequestDetails()),
+      );
       expect(result, isA<ReadListSuccess<TestModel>>());
       final success = result as ReadListSuccess;
       final items = success.items;
@@ -232,7 +241,9 @@ void main() {
           );
         },
       );
-      final result = await src.getByIds({'abc', 'xyz'}, RequestDetails());
+      final result = await src.getByIds(
+        grido({'abc', 'xyz'}, RequestDetails()),
+      );
       expect(result, isA<ReadListFailure<TestModel>>());
     });
   });

@@ -5,6 +5,7 @@ export 'caches.dart';
 export 'filters.dart';
 export 'local_memory_source.dart';
 export 'local_source.dart';
+export 'operations.dart';
 export 'proxy_source.dart';
 export 'repository.dart';
 export 'request_details.dart';

@@ -62,26 +62,30 @@ class ApiSource<T> extends Source<T> {
   SourceType get sourceType => SourceType.remote;
 
   @override
-  Future<ReadResult<T>> getById(String id, RequestDetails details) async {
+  Future<ReadResult<T>> getById(ReadOperation<T> operation) async {
+    final id = operation.itemId;
     if (!loadedItems.containsKey(id) || !loadedItems[id]!.isCompleted) {
       _log.log(logLevel, 'Maybe queuing Id $id');
       queueId(id);
     }
-    return ReadSuccess(await loadedItems[id]!.future, details: details);
+    return ReadSuccess(
+      await loadedItems[id]!.future,
+      details: operation.details,
+    );
   }
 
   @override
-  Future<ReadListResult<T>> getItems(RequestDetails details) async {
+  Future<ReadListResult<T>> getItems(ReadListOperation<T> operation) async {
     final Params params = <String, String>{};
 
     // Add all specified filters as query parameters
-    if (details.filter != null) {
-      params.addAll(details.filter!.toParams());
+    if (operation.details.filter != null) {
+      params.addAll(operation.details.filter!.toParams());
     }
 
     // Add all specified pagination as query parameters
-    if (details.pagination != null) {
-      params.addAll(details.pagination!.toParams());
+    if (operation.details.pagination != null) {
+      params.addAll(operation.details.pagination!.toParams());
     }
 
     final result = await fetchItems(params);
@@ -89,7 +93,7 @@ class ApiSource<T> extends Source<T> {
     return switch (result) {
       ApiSuccess() => ReadListResult.fromList(
         hydrateListResponse(result),
-        details,
+        operation.details,
         {},
         bindings.getId,
       ),
@@ -99,40 +103,47 @@ class ApiSource<T> extends Source<T> {
 
   @override
   Future<ReadListResult<T>> getByIds(
-    Set<String> ids,
-    RequestDetails details,
+    ReadByIdsOperation<T> operation,
   ) async {
-    assert(details.filter == null, 'Must not supply filters to `getByIds`');
+    assert(
+      operation.details.filter == null,
+      'Must not supply filters to `getByIds`',
+    );
 
-    if (ids.isEmpty) {
-      return ReadListResult<T>.fromList([], details, {}, bindings.getId);
+    if (operation.itemIds.isEmpty) {
+      return ReadListResult<T>.fromList(
+        [],
+        operation.details,
+        {},
+        bindings.getId,
+      );
     }
-    final Params params = serializeIdsForQueryString(ids);
+    final Params params = serializeIdsForQueryString(operation.itemIds);
 
     final result = await fetchItems(params);
 
     switch (result) {
       case ApiSuccess():
-        {
-          final items = hydrateListResponse(result);
-          final itemsById = <String, T>{};
-          for (final item in items) {
-            // Objects from the server must always have an Id set.
-            itemsById[bindings.getId(item)!] = item;
-          }
+        final items = hydrateListResponse(result);
+        final itemsById = <String, T>{};
+        for (final item in items) {
+          // Objects from the server must always have an Id set.
+          itemsById[bindings.getId(item)!] = item;
+        }
 
-          final missingItemIds = <String>{};
-          for (final id in ids) {
-            if (!itemsById.containsKey(id)) {
-              missingItemIds.add(id);
-            }
+        final missingItemIds = <String>{};
+        for (final id in operation.itemIds) {
+          if (!itemsById.containsKey(id)) {
+            missingItemIds.add(id);
           }
-          return ReadListResult<T>.fromMap(itemsById, details, missingItemIds);
         }
+        return ReadListResult<T>.fromMap(
+          itemsById,
+          operation.details,
+          missingItemIds,
+        );
       case ApiError():
-        {
-          return ReadListResult.fromApiError(result);
-        }
+        return ReadListResult.fromApiError(result);
     }
   }
 
@@ -164,8 +175,12 @@ class ApiSource<T> extends Source<T> {
     final ids = Set<String>.from(queuedIds);
     queuedIds.clear();
     final byIds = await getByIds(
-      ids,
-      RequestDetails(),
+      ReadByIdsOperation<T>(
+        operationId: 'loadDeferredIds',
+        itemIds: ids,
+        details: RequestDetails(),
+        createdAt: DateTime.now(),
+      ),
     );
     switch (byIds) {
       case ReadListFailure():
@@ -199,16 +214,16 @@ class ApiSource<T> extends Source<T> {
   }
 
   @override
-  Future<WriteResult<T>> setItem(T item, RequestDetails details) async {
+  Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
     final request = WriteApiRequest(
-      url: bindings.getId(item) == null
+      url: bindings.getId(operation.item) == null
           ? bindings.getCreateUrl()
-          : bindings.getDetailUrl(bindings.getId(item)!),
-      body: bindings.toJson(item),
+          : bindings.getDetailUrl(bindings.getId(operation.item)!),
+      body: bindings.toJson(operation.item),
     );
 
     final result =
-        await (bindings.getId(item) ==
+        await (bindings.getId(operation.item) ==
                 null //
             ? api.post(request)
             : api.update(request) //
@@ -218,12 +233,14 @@ class ApiSource<T> extends Source<T> {
       case ApiSuccess():
         final responseItem = hydrateItemResponse(result);
 
-        final writtenItem = responseItem ?? item;
+        final writtenItem = responseItem ?? operation.item;
         if (bindings.getId(writtenItem) == null) {
-          _log.shout('Did not get Id from written saved $T :: $item');
+          _log.shout(
+            'Did not get Id from written saved $T :: ${operation.item}',
+          );
           return WriteFailure<T>(FailureReason.serverError, 'Failed to set Id');
         }
-        return WriteSuccess<T>(writtenItem, details: details);
+        return WriteSuccess<T>(writtenItem, details: operation.details);
       case ApiError():
         return WriteResult.fromApiError(result);
     }
@@ -231,19 +248,20 @@ class ApiSource<T> extends Source<T> {
 
   @override
   Future<WriteListResult<T>> setItems(
-    Iterable<T> items,
-    RequestDetails details,
-  ) => throw Exception('Should never call ApiSource.setItems');
+    WriteListOperation<T> operation,
+  ) =>
+      // TODO(craiglabenz): Could this have a default implementation?
+      throw Exception('Should never call ApiSource.setItems');
 
   @override
-  Future<DeleteResult<T>> delete(String id, RequestDetails details) async {
+  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
     final request = WriteApiRequest(
-      url: bindings.getDetailUrl(id),
+      url: bindings.getDetailUrl(operation.itemId),
       body: null,
     );
     final result = await api.delete(request);
     return switch (result) {
-      ApiSuccess() => DeleteSuccess(details),
+      ApiSuccess() => DeleteSuccess(operation.details),
       ApiError() => DeleteResult.fromApiError(result),
     };
   }

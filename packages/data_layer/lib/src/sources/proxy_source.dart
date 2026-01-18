@@ -2,26 +2,22 @@ import 'package:data_layer/data_layer.dart';
 import 'package:logging/logging.dart';
 
 /// Logic to activate `getById`.
-typedef GetById<T> = Future<T> Function(String, RequestDetails);
+typedef GetById<T> = Future<T> Function(ReadOperation<T>);
 
 /// Logic to activate `getByIds`.
-typedef GetByIds<T> = Future<List<T>> Function(Set<String>, RequestDetails);
+typedef GetByIds<T> = Future<List<T>> Function(ReadByIdsOperation<T>);
 
 /// Logic to activate `getItems`.
-typedef GetItems<T> = Future<List<T>> Function(RequestDetails);
+typedef GetItems<T> = Future<List<T>> Function(ReadListOperation<T>);
 
 /// Logic to activate `setItem`.
-typedef SetItem<T> = Future<T?> Function(T, RequestDetails);
+typedef SetItem<T> = Future<T?> Function(WriteOperation<T>);
 
 /// Logic to activate `setItems`.
-typedef SetItems<T> = Future<List<T>?> Function(Iterable<T>, RequestDetails);
+typedef SetItems<T> = Future<List<T>?> Function(WriteListOperation<T>);
 
 /// Logic to activate `deleteItem`.
-typedef DeleteItem<T> =
-    Future<DeleteResult<T>> Function(
-      String,
-      RequestDetails,
-    );
+typedef DeleteItem<T> = Future<DeleteResult<T>> Function(DeleteOperation<T>);
 
 /// {@template ProxySource}
 /// {@endtemplate}
@@ -59,55 +55,52 @@ class ProxySource<T> extends Source<T> {
   final DeleteItem<T>? deleteHandler;
 
   @override
-  Future<DeleteResult<T>> delete(String id, RequestDetails details) async {
+  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
     if (deleteHandler == null) {
       throw UnimplementedError();
     }
     try {
-      return deleteHandler!.call(id, details);
+      return deleteHandler!.call(operation);
     } on Exception catch (e) {
       _log.severe(e);
       return DeleteFailure<T>(
         FailureReason.serverError,
-        'Failed to delete $T with Id $id',
+        'Failed to delete $T with Id ${operation.itemId}',
       );
     }
   }
 
   @override
-  Future<ReadResult<T>> getById(String id, RequestDetails details) async {
+  Future<ReadResult<T>> getById(ReadOperation<T> operation) async {
     if (getByIdHandler == null) {
       throw UnimplementedError();
     }
 
     try {
-      final obj = await getByIdHandler!.call(id, details);
-      return ReadSuccess<T>(obj, details: details);
+      final obj = await getByIdHandler!.call(operation);
+      return ReadSuccess<T>(obj, details: operation.details);
     } on Exception catch (e) {
       _log.severe(e);
       return ReadFailure<T>(
         FailureReason.serverError,
-        'Failed to load $T with Id $id',
+        'Failed to load $T with Id ${operation.itemId}',
       );
     }
   }
 
   @override
-  Future<ReadListResult<T>> getByIds(
-    Set<String> ids,
-    RequestDetails details,
-  ) async {
+  Future<ReadListResult<T>> getByIds(ReadByIdsOperation<T> operation) async {
     if (getByIdsHandler == null) {
       throw UnimplementedError();
     }
 
     try {
-      final objs = await getByIdsHandler!.call(ids, details);
+      final objs = await getByIdsHandler!.call(operation);
       final loadedIds = objs.map<String>((obj) => bindings.getId(obj)!).toSet();
       return ReadListResult.fromList(
         objs,
-        details,
-        ids.difference(loadedIds),
+        operation.details,
+        operation.itemIds.difference(loadedIds),
         bindings.getId,
       );
     } on Exception catch (e) {
@@ -120,13 +113,18 @@ class ProxySource<T> extends Source<T> {
   }
 
   @override
-  Future<ReadListResult<T>> getItems(RequestDetails details) async {
+  Future<ReadListResult<T>> getItems(ReadListOperation<T> operation) async {
     if (getItemsHandler == null) {
       throw UnimplementedError();
     }
     try {
-      final objs = await getItemsHandler!.call(details);
-      return ReadListResult.fromList(objs, details, {}, bindings.getId);
+      final objs = await getItemsHandler!.call(operation);
+      return ReadListResult.fromList(
+        objs,
+        operation.details,
+        {},
+        bindings.getId,
+      );
     } on Exception catch (e) {
       _log.severe(e);
       return ReadListFailure<T>(FailureReason.serverError, 'Failed to load $T');
@@ -134,53 +132,58 @@ class ProxySource<T> extends Source<T> {
   }
 
   @override
-  Future<WriteResult<T>> setItem(T item, RequestDetails details) async {
+  Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
     if (setItemHandler == null) {
       throw UnimplementedError();
     }
 
     late final T? obj;
     try {
-      obj = await setItemHandler!.call(item, details);
+      obj = await setItemHandler!.call(operation);
     } on Exception catch (e) {
       _log.severe(e);
-      return WriteFailure<T>(FailureReason.serverError, 'Failed to save $item');
+      return WriteFailure<T>(
+        FailureReason.serverError,
+        'Failed to save ${operation.item}',
+      );
     }
-    if (obj == null && bindings.getId(item) == null) {
+    if (obj == null && bindings.getId(operation.item) == null) {
       _log.warning(
         'Saved new $T but no object was returned; therefore we do not know '
         'its Id',
       );
     }
-    return WriteSuccess<T>(obj ?? item, details: details);
+    return WriteSuccess<T>(obj ?? operation.item, details: operation.details);
   }
 
   @override
-  Future<WriteListResult<T>> setItems(
-    Iterable<T> items,
-    RequestDetails details,
-  ) async {
+  Future<WriteListResult<T>> setItems(WriteListOperation<T> operation) async {
     if (setItemsHandler == null) {
       throw UnimplementedError();
     }
     late final List<T>? objs;
     try {
-      objs = await setItemsHandler!.call(items, details);
+      objs = await setItemsHandler!.call(operation);
     } on Exception catch (e) {
       _log.severe(e);
       return WriteListFailure<T>(
         FailureReason.serverError,
-        'Failed to save $items',
+        'Failed to save ${operation.items}',
       );
     }
-    final anyNewItems = items.any((item) => bindings.getId(item) == null);
+    final anyNewItems = operation.items.any(
+      (item) => bindings.getId(item) == null,
+    );
     if (anyNewItems && objs == null) {
       _log.warning(
         'Saved new $T objects but no finalized objects were returned; '
         'therefore we do not know their Ids',
       );
     }
-    return WriteListSuccess(objs ?? items, details: details);
+    return WriteListSuccess(
+      objs ?? operation.items,
+      details: operation.details,
+    );
   }
 
   @override

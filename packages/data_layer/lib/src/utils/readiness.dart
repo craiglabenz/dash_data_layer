@@ -107,9 +107,9 @@ mixin ReadinessMixin<T> {
   }
 
   /// Classes using [ReadinessMixin] should implement this method to perform
-  /// any necessary initialization. Additionally, if there is a critical value
-  /// that is required for the object to be ready, it should be returned from
-  /// this method.
+  /// any necessary initialization. Implementations of this method should
+  /// call [markReady] and pass in any special value for [T] that should be
+  /// returned from [ready].
   FutureOr<void> performInitialization();
 
   /// Resets any established readiness, if for example a dependency of this
@@ -125,7 +125,9 @@ mixin ReadinessMixin<T> {
     readiness = Readiness.loading;
   }
 
-  /// Marks this object as ready.
+  /// Marks this object as ready. Implementing classes should call this function
+  /// when they are ready, presumably either in or because of some side effect
+  /// of [performInitialization].
   void markReady(T obj) {
     if (_readinessCompleter.isCompleted) {
       throw Exception(

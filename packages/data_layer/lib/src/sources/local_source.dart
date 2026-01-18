@@ -109,48 +109,48 @@ class LocalSource<T> extends Source<T> {
   SourceType sourceType = SourceType.local;
 
   @override
-  Future<ReadResult<T>> getById(String id, RequestDetails details) async {
-    details.assertEmpty('LocalSource<$T>.getById');
+  Future<ReadResult<T>> getById(ReadOperation<T> operation) async {
+    operation.details.assertEmpty('LocalSource<$T>.getById');
     return ReadSuccess<T>(
-      await _itemsCache.read(id),
-      details: details,
+      await _itemsCache.read(operation.itemId),
+      details: operation.details,
     );
   }
 
   @override
-  Future<ReadListResult<T>> getByIds(
-    Set<String> ids,
-    RequestDetails details,
-  ) async {
-    details.assertEmpty('LocalSource<$T>.getByIds');
-    final items = await _itemsCache.multiRead(ids);
+  Future<ReadListResult<T>> getByIds(ReadByIdsOperation<T> operation) async {
+    operation.details.assertEmpty('LocalSource<$T>.getByIds');
+    final items = await _itemsCache.multiRead(operation.itemIds);
     final foundItemIds = items.keys.toSet();
-    final missingItemIds = ids.difference(foundItemIds);
+    final missingItemIds = operation.itemIds.difference(foundItemIds);
     return ReadListResult<T>.fromMap(
       items,
-      details,
+      operation.details,
       missingItemIds,
     );
   }
 
   @override
-  Future<ReadListResult<T>> getItems(RequestDetails details) async {
+  Future<ReadListResult<T>> getItems(ReadListOperation<T> operation) async {
     Set<String>? ids;
-    if (details.requestType == .allLocal) {
+    if (operation.details.requestType == .allLocal) {
       final allItems = await _itemsCache.readAll();
       return ReadListResult.fromMap(
         allItems,
-        details,
+        operation.details,
         <String>{},
       );
     }
 
-    ids = await _requestCache.read(details.cacheKey);
-    _log.finest('Getting items for ${details.cacheKey}. Found Ids $ids');
+    ids = await _requestCache.read(operation.details.cacheKey);
+    _log.finest(
+      'Getting items for ${operation.details.cacheKey}. Found Ids $ids',
+    );
 
     assert(
       ids == null || ids.isNotEmpty,
-      'Unexpectedly found empty set of Ids $ids from cache for $details. \n'
+      'Unexpectedly found empty set of Ids $ids from cache for '
+      '${operation.details.cacheKey}. \n'
       'Empty sets should never be cached.',
     );
 
@@ -158,14 +158,14 @@ class LocalSource<T> extends Source<T> {
         ? await _itemsCache.multiRead(ids)
         : <String, T>{};
 
-    return ReadListResult.fromMap(items, details, <String>{});
+    return ReadListResult.fromMap(items, operation.details, <String>{});
   }
 
-  T _generateId(T item) => (bindings as CreationBindings<T>).save(item);
+  T _generateItemId(T item) => (bindings as CreationBindings<T>).save(item);
 
   @override
-  Future<WriteResult<T>> setItem(T item, RequestDetails details) async {
-    var itemCopy = item;
+  Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
+    T itemCopy = operation.item;
     if (bindings.getId(itemCopy) == null) {
       if (bindings is! CreationBindings<T>) {
         _log.shout(
@@ -177,47 +177,46 @@ class LocalSource<T> extends Source<T> {
           'Could not save item with null Id',
         );
       } else {
-        itemCopy = _generateId(itemCopy);
+        itemCopy = _generateItemId(itemCopy);
       }
     }
 
     await _itemsCache.write(
       bindings.getId(itemCopy)!,
       itemCopy,
-      ttl: details.ttl ?? ttl,
+      ttl: operation.details.ttl ?? ttl,
     );
-    return WriteSuccess<T>(itemCopy, details: details);
+    return WriteSuccess<T>(itemCopy, details: operation.details);
   }
 
   @override
-  Future<WriteListResult<T>> setItems(
-    Iterable<T> items,
-    RequestDetails details,
-  ) async {
-    if (items.isEmpty) {
-      await clearForRequest(details);
-      return WriteListSuccess<T>(items, details: details);
+  Future<WriteListResult<T>> setItems(WriteListOperation<T> operation) async {
+    if (operation.items.isEmpty) {
+      await clearForRequest(operation.details);
+      return WriteListSuccess<T>(operation.items, details: operation.details);
     }
 
-    final itemIds = items.map<String>((item) => bindings.getId(item)!).toSet();
-    _log.finest('Caching $itemIds to ${details.cacheKey}');
+    final itemIds = operation.items
+        .map<String>((item) => bindings.getId(item)!)
+        .toSet();
+    _log.finest('Caching $itemIds to ${operation.details.cacheKey}');
     await _requestCache.write(
-      details.cacheKey,
+      operation.details.cacheKey,
       itemIds,
-      ttl: details.ttl ?? ttl,
+      ttl: operation.details.ttl ?? ttl,
     );
 
-    if (details.pagination != null) {
+    if (operation.details.pagination != null) {
       final pageClusterCacheKeys =
           await _paginatedRequestCache.read(
-            details.noPaginationCacheKey,
+            operation.details.noPaginationCacheKey,
           ) ??
           <CacheKey>{};
 
-      if (!pageClusterCacheKeys.contains(details.cacheKey)) {
-        pageClusterCacheKeys.add(details.cacheKey);
+      if (!pageClusterCacheKeys.contains(operation.details.cacheKey)) {
+        pageClusterCacheKeys.add(operation.details.cacheKey);
         await _paginatedRequestCache.write(
-          details.noPaginationCacheKey,
+          operation.details.noPaginationCacheKey,
           pageClusterCacheKeys,
           // Do not pass ttl here -- that is handled by [_requestCache]
           // because paginated requests timeout individually, not as a cluster
@@ -228,23 +227,23 @@ class LocalSource<T> extends Source<T> {
     // Now save the actual item payloads
     await _itemsCache.multiWrite(
       Map.fromEntries(
-        items.map<MapEntry<String, T>>(
+        operation.items.map<MapEntry<String, T>>(
           (item) => MapEntry(bindings.getId(item)!, item),
         ),
       ),
-      ttl: details.ttl ?? ttl,
+      ttl: operation.details.ttl ?? ttl,
     );
 
-    return WriteListSuccess<T>(items, details: details);
+    return WriteListSuccess<T>(operation.items, details: operation.details);
   }
 
   @override
-  Future<DeleteResult<T>> delete(String id, RequestDetails details) async {
+  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
     assert(
-      details.requestType.includes(sourceType),
-      'Should not route ${details.requestType} request to $this',
+      operation.details.requestType.includes(sourceType),
+      'Should not route ${operation.details.requestType} request to $this',
     );
-    await deleteIds({id});
-    return DeleteSuccess<T>(details);
+    await deleteIds({operation.itemId});
+    return DeleteSuccess<T>(operation.details);
   }
 }

@@ -2,6 +2,7 @@ import 'package:data_layer/data_layer.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import '../models/test_model.dart';
+import 'operation_builders.dart';
 
 class MockItemsCache extends Mock implements ExpiringCache<TestModel> {}
 
@@ -60,13 +61,13 @@ void main() {
   group('LocalMemorySource.setItem should', () {
     test('save items', () async {
       when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
-      await source.setItem(item, details);
+      await source.setItem(gwo(item, details));
       verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
       when(
         () => mockItemsCache.write(item2.id!, item2),
       ).thenAnswer((_) async {});
-      await source.setItem(item2, abcDetails);
+      await source.setItem(gwo(item2, abcDetails));
       verify(() => mockItemsCache.write(item2.id!, item2)).called(1);
 
       // setItem never writes cache info - only setItems can do that
@@ -76,11 +77,11 @@ void main() {
 
     test('accept items twice', () async {
       when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
-      await source.setItem(item, details);
+      await source.setItem(gwo(item, details));
       verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
       when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
-      await source.setItem(item, details);
+      await source.setItem(gwo(item, details));
       verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
       verifyNever(() => mockRequestCache.write(details.cacheKey, any()));
@@ -88,14 +89,14 @@ void main() {
 
     test('overwrite', () async {
       when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
-      await source.setItem(item, details);
+      await source.setItem(gwo(item, details));
       verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
       final itemTake2 = TestModel(id: item.id, msg: 'different');
       when(
         () => mockItemsCache.write(itemTake2.id!, itemTake2),
       ).thenAnswer((_) async {});
-      await source.setItem(itemTake2, details);
+      await source.setItem(gwo(itemTake2, details));
       verify(() => mockItemsCache.write(itemTake2.id!, itemTake2)).called(1);
     });
 
@@ -105,7 +106,7 @@ void main() {
 
       when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
       // setItem never writes cache info - only setItems can do that
-      await source.setItem(item, deets);
+      await source.setItem(gwo(item, deets));
       verify(() => mockItemsCache.write(item.id!, item)).called(1);
 
       verifyNever(
@@ -125,7 +126,7 @@ void main() {
           item2.id!,
         }),
       ).thenAnswer((_) async {});
-      await source.setItems([item, item2], details);
+      await source.setItems(gwlo([item, item2], details));
       verify(() => mockItemsCache.multiWrite(items1and2ByIds)).called(1);
 
       when(
@@ -137,7 +138,7 @@ void main() {
           item3.id!,
         }),
       ).thenAnswer((_) async {});
-      await source.setItems([item2, item3], details);
+      await source.setItems(gwlo([item2, item3], details));
       verify(() => mockItemsCache.multiWrite(items2and3ByIds)).called(1);
     });
 
@@ -162,7 +163,7 @@ void main() {
           item2.id!,
         }),
       ).thenAnswer((_) async {});
-      await source.setItems([item, item2], paginationDetails);
+      await source.setItems(gwlo([item, item2], paginationDetails));
     });
 
     test('set items with set name', () async {
@@ -175,27 +176,27 @@ void main() {
           item3.id!,
         }),
       ).thenAnswer((_) async {});
-      await source.setItems([item2, item3], abcDetails);
+      await source.setItems(gwlo([item2, item3], abcDetails));
     });
   });
 
   group('LocalMemorySource.getById should', () {
     test('throw for filters or pagination', () async {
       expect(
-        () => source.getById(item.id!, abcDetails),
+        () => source.getById(gro(item.id!, abcDetails)),
         _throwsAssertionError,
       );
     });
 
     test('return known items', () async {
       when(() => mockItemsCache.read(item.id!)).thenAnswer((_) async => item);
-      await source.getById(item.id!, details);
+      await source.getById(gro(item.id!, details));
       verify(() => mockItemsCache.read(item.id!)).called(1);
     });
 
     test('return empty ReadSuccess for unknown items', () async {
       when(() => mockItemsCache.read(item.id!)).thenAnswer((_) async => null);
-      final result = await source.getById(item.id!, details);
+      final result = await source.getById(gro(item.id!, details));
       expect(result, isA<ReadSuccess<TestModel>>());
       expect(result.itemOrRaise(), isNull);
       verify(() => mockItemsCache.read(item.id!)).called(1);
@@ -203,13 +204,13 @@ void main() {
 
     test('NOT honor request details', () async {
       when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
-      await source.setItem(item, details);
+      await source.setItem(gwo(item, details));
       verifyNever(() => mockRequestCache.write(details.cacheKey, any()));
     });
 
     test('NOT honor pagination', () async {
       when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
-      await source.setItem(item, paginationDetails);
+      await source.setItem(gwo(item, paginationDetails));
       verifyNever(
         () => mockRequestCache.write(paginationDetails.cacheKey, any()),
       );
@@ -219,7 +220,7 @@ void main() {
   group('LocalMemorySource.getByIds should', () {
     test('throw for filters or pagination', () async {
       expect(
-        () => source.getByIds({item.id!}, abcDetails),
+        () => source.getByIds(grido({item.id!}, abcDetails)),
         _throwsAssertionError,
       );
     });
@@ -229,8 +230,7 @@ void main() {
         () => mockItemsCache.multiRead({item.id!, item2.id!}),
       ).thenAnswer((_) async => items1and2ByIds);
       final maybeResult = await source.getByIds(
-        {item.id!, item2.id!},
-        details,
+        grido({item.id!, item2.id!}, details),
       );
       expect(maybeResult, isA<ReadListSuccess<TestModel>>());
       verify(() => mockItemsCache.multiRead({item.id!, item2.id!})).called(1);
@@ -241,8 +241,7 @@ void main() {
         () => mockItemsCache.multiRead({item.id!, item2.id!, item3.id!}),
       ).thenAnswer((_) async => allItemsByIds);
       final maybeResult = await source.getByIds(
-        {item.id!, item2.id!, item3.id!},
-        details,
+        grido({item.id!, item2.id!, item3.id!}, details),
       );
       expect(maybeResult, isA<ReadListSuccess<TestModel>>());
       verify(
@@ -259,7 +258,7 @@ void main() {
       when(
         () => mockItemsCache.multiRead(items1And3ByIds.keys.toSet()),
       ).thenAnswer((_) async => items1And3ByIds);
-      final maybeResult = await source.getItems(details);
+      final maybeResult = await source.getItems(grlo(details));
       expect(
         maybeResult,
         ReadListResult<TestModel>.fromList(
@@ -279,7 +278,7 @@ void main() {
         () => mockRequestCache.read(xyzDetails.cacheKey),
       ).thenAnswer((_) async => null);
 
-      final maybeResult = await source.getItems(xyzDetails);
+      final maybeResult = await source.getItems(grlo(xyzDetails));
       expect(maybeResult, isA<ReadListSuccess<TestModel>>());
       expect(
         (maybeResult as ReadListSuccess<TestModel>).itemsOrRaise(),
@@ -299,7 +298,7 @@ void main() {
         when(
           () => mockRequestCache.read(abcDetails.cacheKey),
         ).thenAnswer((_) async => null);
-        final maybeResult = await source.getItems(abcDetails);
+        final maybeResult = await source.getItems(grlo(abcDetails));
         expect(maybeResult, isA<ReadListSuccess<TestModel>>());
         expect(
           (maybeResult as ReadListSuccess<TestModel>).itemsOrRaise(),
@@ -320,7 +319,7 @@ void main() {
       when(
         mockPaginatedRequestCache.readAll,
       ).thenAnswer((_) async => <CacheKey, Set<String>>{});
-      await source.delete(item.id!, details);
+      await source.delete(gdo(item.id!, details));
       verify(
         () => mockItemsCache.multiDelete(<String>{item.id!}),
       ).called(1);
@@ -349,7 +348,7 @@ void main() {
         () => mockRequestCache.delete(details.cacheKey),
       ).thenAnswer((_) async {});
 
-      await source.delete(item.id!, details);
+      await source.delete(gdo(item.id!, details));
 
       // The item was deleted
       verify(
@@ -390,7 +389,7 @@ void main() {
         () => mockRequestCache.write(details.cacheKey, {item2.id!}),
       ).thenAnswer((_) async {});
 
-      await source.delete(item.id!, details);
+      await source.delete(gdo(item.id!, details));
 
       // The item was deleted
       verify(

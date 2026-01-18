@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:data_layer/data_layer.dart';
+import 'package:logging/logging.dart';
 
 /// {@template SourceList}
 /// Data component which iteratively asks individual sources for an object.
@@ -14,10 +15,20 @@ import 'package:data_layer/data_layer.dart';
 /// The [RequestType] parameter on [RequestDetails] can be used to
 /// control which sources are asked, which is helpful when you want to force a
 /// cache read or cache miss.
+///
+/// To retry failed operations, supply a [RetryPolicy], or use the default value
+/// which aims to provide reasonable defaults.
+///
+/// See also:
+///   * [RetryPolicy] which controls how failed operations are retried.
 /// {@endtemplate}
 class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   /// {@macro SourceList}
-  SourceList({required this.sources, required this.bindings}) {
+  SourceList({
+    required this.sources,
+    required this.bindings,
+    DateTime Function()? getTime,
+  }) : _getTime = getTime {
     for (final source in sources) {
       if (!source.hasBindings) {
         source.bindings = bindings;
@@ -37,6 +48,22 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   /// requested data.
   final List<Source<T>> sources;
 
+  DateTime Function()? _getTime;
+
+  /// {@macro Repository.getTime}
+  DateTime Function() get getTime {
+    if (_getTime == null) {
+      throw StateError(
+        'getTime not initialized in $this. Repositories set this on their '
+        'SourceList directly, but if you are creating this SourceList on your '
+        'own then you must pass or set the variable yourself.',
+      );
+    }
+    return _getTime!;
+  }
+
+  set getTime(DateTime Function() value) => _getTime = value;
+
   /// Returns all sources that match a given [RequestType]. Unmatches sources
   /// are also returned with that indicator, so they can still be stored in a
   /// list of empty sources for the purposes of caching.
@@ -54,41 +81,52 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   Future<void> _cacheItem(
-    T item,
     List<Source<T>> emptySources,
-    RequestDetails details,
+    WriteOperation<T> operation,
   ) async {
     for (final source in emptySources) {
-      await source.setItem(item, details);
+      await source.setItem(operation);
     }
   }
 
   Future<void> _cacheItems(
-    Iterable<T> items,
     List<Source<T>> emptySources,
-    RequestDetails details,
+    WriteListOperation<T> operation,
   ) async {
     for (final source in emptySources) {
-      await source.setItems(items, details);
+      await source.setItems(operation);
     }
   }
 
   @override
-  Future<ReadResult<T>> getById(String id, RequestDetails details) async {
-    details.assertEmpty('SourceList<$T>.getById');
+  Future<ReadResult<T>> getById(ReadOperation<T> operation) async {
+    operation.details.assertEmpty('SourceList<$T>.getById');
+
     final emptySources = <Source<T>>[];
-    for (final matchedSource in getSources(requestType: details.requestType)) {
-      if (matchedSource.unmatched) {
-        emptySources.add(matchedSource.source);
+    final sourcesIter = getSources(
+      requestType: operation.details.requestType,
+    );
+    for (final ms in sourcesIter) {
+      if (ms.unmatched) {
+        emptySources.add(ms.source);
         continue;
       }
-      final source = matchedSource.source;
-      final sourceResult = await source.getById(id, details);
+      final source = ms.source;
+      final sourceResult = await source.getById(operation);
 
       switch (sourceResult) {
         case ReadSuccess(:final item):
           if (item != null) {
-            await _cacheItem(item, emptySources, details);
+            await _cacheItem(
+              emptySources,
+              WriteOperation<T>(
+                operationId: operation.operationId,
+                details: operation.details,
+                item: item,
+                createdAt: operation.createdAt,
+                attemptNumber: operation.attemptNumber,
+              ),
+            );
             return sourceResult;
           }
           emptySources.add(source);
@@ -96,15 +134,13 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
           return sourceResult;
       }
     }
-    return ReadSuccess<T>(null, details: details);
+    return ReadSuccess<T>(null, details: operation.details);
   }
 
   @override
-  Future<ReadListResult<T>> getByIds(
-    Set<String> ids,
-    RequestDetails details,
-  ) async {
-    details.assertEmpty('SourceList<$T>.getByIds');
+  Future<ReadListResult<T>> getByIds(ReadByIdsOperation<T> operation) async {
+    operation.details.assertEmpty('SourceList<$T>.getByIds');
+
     final items = <String, T>{};
     final pastSources = <Source<T>>[];
     final backfillMap = <Source<T>, Set<T>>{};
@@ -113,26 +149,25 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     // Called `missingIds` not because we've deemed these are all missing, but
     // because we're going to iteratively remove items that are locally known -
     // meaning at the end of the loop, remaining ids will be confirmed missing.
-    var missingIds = Set<String>.from(ids);
+    var missingIds = Set<String>.from(operation.itemIds);
 
-    for (final matchedSource in getSources(requestType: details.requestType)) {
+    for (final ms in getSources(requestType: operation.details.requestType)) {
       if (missingIds.isEmpty) {
         break;
       }
 
-      if (matchedSource.unmatched) {
-        pastSources.add(matchedSource.source);
+      if (ms.unmatched) {
+        pastSources.add(ms.source);
         continue;
       }
-      final sourceResult = await matchedSource.source.getByIds(
-        missingIds,
-        details,
+      final sourceResult = await ms.source.getByIds(
+        operation.copyWith(itemIds: missingIds),
       );
 
       switch (sourceResult) {
-        case ReadListFailure():
+        case ReadListFailure<T>():
           return sourceResult;
-        case ReadListSuccess():
+        case ReadListSuccess<T>():
           items.addAll(sourceResult.itemsMap);
           // Mark which Source needs which items
           for (final pastSource in pastSources) {
@@ -145,55 +180,71 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
           // Note that we've already processed this Source, so if future
           // Sources produce any new items, we can backfill them to here.
-          pastSources.add(matchedSource.source);
+          pastSources.add(ms.source);
       }
     }
 
     // Persist any items we found to local stores
     for (final pastSource in backfillMap.keys) {
-      if (pastSource is! LocalSource) continue;
+      if (pastSource is! LocalSource<T>) continue;
 
       if (backfillMap[pastSource]!.isNotEmpty) {
         for (final item in backfillMap[pastSource]!) {
-          await pastSource.setItem(item, details);
+          // await pastSource.setItem(item, details);
+          await pastSource.setItem(
+            WriteOperation<T>(
+              operationId: operation.operationId,
+              item: item,
+              details: operation.details,
+              createdAt: getTime(),
+            ),
+          );
         }
       }
 
-      if (!details.isLocal && missingIds.isNotEmpty) {
+      if (!operation.details.isLocal && missingIds.isNotEmpty) {
         // Missing Ids at this point would mean that we tried to load data from
         // the server and still failed to pull in certain Ids. That means they
         // don't exist anymore, and thus we can delete them.
-        await (pastSource as LocalSource<T>).deleteIds(missingIds);
+        await pastSource.deleteIds(missingIds);
       }
     }
 
-    return ReadListResult<T>.fromMap(items, details, missingIds);
+    return ReadListResult<T>.fromMap(items, operation.details, missingIds);
   }
 
   @override
-  Future<ReadListResult<T>> getItems(RequestDetails details) async {
+  Future<ReadListResult<T>> getItems(ReadListOperation<T> operation) async {
     final emptySources = <Source<T>>[];
-    for (final matchedSource in getSources(requestType: details.requestType)) {
-      if (matchedSource.unmatched) {
-        emptySources.add(matchedSource.source);
+    for (final ms in getSources(requestType: operation.details.requestType)) {
+      if (ms.unmatched) {
+        emptySources.add(ms.source);
         continue;
       }
 
-      final sourceResult = await matchedSource.source.getItems(details);
+      final sourceResult = await ms.source.getItems(operation);
 
       switch (sourceResult) {
         case ReadListSuccess<T>():
           final items = sourceResult.items;
           if (items.isNotEmpty) {
-            await _cacheItems(items, emptySources, details);
+            await _cacheItems(
+              emptySources,
+              WriteListOperation<T>(
+                operationId: operation.operationId,
+                items: items,
+                details: operation.details,
+                createdAt: getTime(),
+              ),
+            );
             return ReadListResult<T>.fromList(
               items,
-              details,
+              operation.details,
               {},
               bindings.getId,
             );
           } else {
-            emptySources.add(matchedSource.source);
+            emptySources.add(ms.source);
           }
         case ReadListFailure<T>():
           return sourceResult;
@@ -201,64 +252,71 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     }
 
     // Lastly, help any local sources track their known empty sets.
-    if (details.requestType == RequestType.global ||
-        details.requestType == RequestType.refresh) {
+    if (operation.details.requestType == RequestType.global ||
+        operation.details.requestType == RequestType.refresh) {
       for (final source in emptySources) {
         if (source is LocalSource<T>) {
-          await source.setItems(<T>[], details);
+          await source.setItems(
+            WriteListOperation<T>(
+              operationId: operation.operationId,
+              items: <T>[],
+              details: operation.details,
+              createdAt: getTime(),
+            ),
+          );
         }
       }
     }
-    return ReadListResult<T>.fromList([], details, {}, bindings.getId);
+    return ReadListResult<T>.fromList(
+      [],
+      operation.details,
+      {},
+      bindings.getId,
+    );
   }
 
   @override
-  Future<WriteResult<T>> setItem(T item, RequestDetails details) async {
-    T itemDup = item;
+  Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
+    T itemCopy = operation.item;
     for (final ms in getSources(
-      requestType: details.requestType,
+      requestType: operation.details.requestType,
       // Hit API first if item is new, so as to get an Id
-      reversed: bindings.getId(item) == null,
+      reversed: bindings.getId(operation.item) == null,
     )) {
       if (ms.unmatched) continue;
 
-      final result = await ms.source.setItem(itemDup, details);
+      final result = await ms.source.setItem(
+        operation.copyWith(item: itemCopy),
+      );
 
       switch (result) {
         case WriteSuccess<T>():
-          if (bindings.getId(item) == null) {
+          if (bindings.getId(operation.item) == null) {
             if (bindings.getId(result.item) == null) {
               return WriteFailure<T>(
                 FailureReason.serverError,
                 'Failed to generate Id for new $T',
               );
             }
-            itemDup = result.item;
+            itemCopy = result.item;
           }
         case WriteFailure<T>():
           return result;
       }
     }
-    return WriteSuccess<T>(itemDup, details: details);
+    return WriteSuccess<T>(itemCopy, details: operation.details);
   }
 
   @override
-  Future<WriteListResult<T>> setItems(
-    Iterable<T> items,
-    RequestDetails details,
-  ) async {
-    assert(
-      details.requestType == RequestType.local,
-      'setItems is a local-only method',
-    );
-    for (final ms in getSources(requestType: details.requestType)) {
+  Future<WriteListResult<T>> setItems(WriteListOperation<T> operation) async {
+    for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) continue;
-      final result = await ms.source.setItems(items, details);
+      final result = await ms.source.setItems(operation);
       if (result is WriteListFailure) {
         return result;
       }
     }
-    return WriteListSuccess<T>(items, details: details);
+    return WriteListSuccess<T>(operation.items, details: operation.details);
   }
 
   /// Calls clear on all [LocalSource]s.
@@ -279,15 +337,15 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   @override
-  Future<DeleteResult<T>> delete(String id, RequestDetails details) async {
-    for (final ms in getSources(requestType: details.requestType)) {
+  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
+    for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) continue;
-      final result = await ms.source.delete(id, details);
+      final result = await ms.source.delete(operation);
       if (result is DeleteFailure<T>) {
         return result;
       }
     }
-    return DeleteSuccess<T>(details);
+    return DeleteSuccess<T>(operation.details);
   }
 
   @override
@@ -301,6 +359,9 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     await Future.wait(futures);
     markReady(null);
   }
+
+  /// Closes the [SourceList] and releases any resources it holds.
+  Future<void> close() async {}
 
   @override
   String toString() => 'SourceList<$T>(sources: $sources)';

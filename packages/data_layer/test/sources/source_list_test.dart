@@ -5,6 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
 
 import '../models/test_model.dart';
+import 'operation_builders.dart';
+
+DateTime Function() _now = () => DateTime.now().toUtc();
 
 const _id = 'uuid';
 const _id2 = 'uuid2';
@@ -122,13 +125,14 @@ SourceList<TestModel> getSourceList(RequestDelegate delegate) =>
         ),
       ],
       bindings: TestModel.bindings,
+      getTime: _now,
     );
 
 void main() {
   group('SourceList.getById should', () {
     test('get and cache items', () async {
       final sl = getSourceList(getRequestDelegate([listResponseBody]));
-      final readResult = await sl.getById(_id, details);
+      final readResult = await sl.getById(gro(_id, details));
       final loadedObj = readResult.getOrRaise().item;
       expect(loadedObj, equals(fred));
       // Object will be asserted to exist, but it should not be cached.
@@ -149,7 +153,7 @@ void main() {
             statusCode: HttpStatus.notFound,
           ),
         );
-        final readResult = await sl.getById(_id, details);
+        final readResult = await sl.getById(gro(_id, details));
         expect(readResult.getOrRaise().item, isNull);
         await hasNotCached(
           sl,
@@ -169,23 +173,23 @@ void main() {
         ),
       );
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItem(
-        fred,
-        localDetails,
+        gwo(fred, localDetails),
       );
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItem(
-        fred,
-        localDetails,
+        gwo(fred, localDetails),
       );
 
-      final readResult = await sl.getById(fred.id!, details);
+      final readResult = await sl.getById(gro(fred.id!, details));
       expect(readResult.getOrRaise().item, fred);
 
-      final localReadResult = await sl.getById(fred.id!, localDetails);
+      final localReadResult = await sl.getById(gro(fred.id!, localDetails));
       expect(localReadResult.getOrRaise().item, fred);
-      final localReadResult2 = await sl.getById(flintstone.id!, localDetails);
+      final localReadResult2 = await sl.getById(
+        gro(flintstone.id!, localDetails),
+      );
       expect(localReadResult2.getOrRaise().item, isNull);
 
-      final remoteReadResult = await sl.getById(fred.id!, refreshDetails);
+      final remoteReadResult = await sl.getById(gro(fred.id!, refreshDetails));
       expect(remoteReadResult.getOrRaise().item, isNull);
     });
   });
@@ -193,7 +197,7 @@ void main() {
   group('SourceList.getByIds should', () {
     test('get and cache items', () async {
       final sl = getSourceList(getRequestDelegate([twoElementResponseBody]));
-      final readResult = await sl.getByIds({_id, _id2}, details);
+      final readResult = await sl.getByIds(grido({_id, _id2}, details));
       expect(readResult.getOrRaise().items, containsAll([fred, flintstone]));
       await hasNotCached(sl, [fred, flintstone], [details, localDetails]);
     });
@@ -202,7 +206,7 @@ void main() {
       'get and cache items on partial returns',
       () async {
         final sl = getSourceList(getRequestDelegate([listResponseBody]));
-        final readResult = await sl.getByIds({_id, _id2}, details);
+        final readResult = await sl.getByIds(grido({_id, _id2}, details));
         final loadedItems = readResult.getOrRaise().items;
         expect(loadedItems, contains(fred));
         expect(loadedItems, isNot(contains(flintstone)));
@@ -220,18 +224,15 @@ void main() {
     test('complete partially filled local hits', () async {
       final sl = getSourceList(twoItemdelegate200);
       await (sl.sources[0] as LocalMemorySource<TestModel>).setItem(
-        fred,
-        localDetails,
+        gwo(fred, localDetails),
       );
       await (sl.sources[1] as LocalMemorySource<TestModel>).setItem(
-        fred,
-        localDetails,
+        gwo(fred, localDetails),
       );
 
-      final localReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, localDetails);
+      final localReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, localDetails),
+      );
       final loadedItems = localReadResult.getOrRaise().items;
       expect(loadedItems, equals({fred}));
       expect(localReadResult.getOrRaise().missingItemIds, {flintstone.id!});
@@ -244,39 +245,36 @@ void main() {
         shouldExistAtAll: false,
       );
 
-      final remoteReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, refreshDetails);
+      final remoteReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, refreshDetails),
+      );
       expect(remoteReadResult.getOrRaise().items.length, 2);
       await hasNotCached(sl, [fred, flintstone], [details, localDetails]);
     });
 
     test('honor request types', () async {
       final sl = getSourceList(getEmptyDelegate());
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localDetails);
-      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localDetails);
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localDetails),
+      );
+      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localDetails),
+      );
 
-      final readResult = await sl.getByIds({fred.id!, flintstone.id!}, details);
+      final readResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, details),
+      );
       expect(readResult.getOrRaise().items.length, 2);
       await hasCached(sl, [fred, flintstone], [details, localDetails]);
 
-      final localReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, localDetails);
+      final localReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, localDetails),
+      );
       expect(localReadResult.getOrRaise().items.length, 2);
 
-      final remoteReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, refreshDetails);
+      final remoteReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, refreshDetails),
+      );
       expect(remoteReadResult.getOrRaise().items.length, 0);
     });
 
@@ -284,24 +282,22 @@ void main() {
       final sl = getSourceList(getRequestDelegate([listResponseBody]));
 
       // Write obj1 and obj2 to both [details] and [abcDetails]
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localAbcDetails);
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], details);
-      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localAbcDetails);
-      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], details);
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localAbcDetails),
+      );
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], details),
+      );
+      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localAbcDetails),
+      );
+      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], details),
+      );
 
-      final readResult = await sl.getByIds({fred.id!, flintstone.id!}, details);
+      final readResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, details),
+      );
       expect(readResult.getOrRaise().items.length, 2);
       await hasCached(
         sl,
@@ -309,17 +305,15 @@ void main() {
         [details, localDetails, localAbcDetails],
       );
 
-      final localReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, localDetails);
+      final localReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, localDetails),
+      );
       expect(localReadResult.getOrRaise().items.length, 2);
       await hasCached(sl, [fred, flintstone], [details, localDetails]);
 
-      final remoteReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, refreshDetails);
+      final remoteReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, refreshDetails),
+      );
       expect(remoteReadResult.getOrRaise().items.length, 1);
       await hasCached(
         sl,
@@ -338,24 +332,22 @@ void main() {
       final sl = getSourceList(getEmptyDelegate());
 
       // Write obj1 and obj2 to both [details] and [abcDetails]
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localAbcDetails);
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], details);
-      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localAbcDetails);
-      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], details);
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localAbcDetails),
+      );
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], details),
+      );
+      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localAbcDetails),
+      );
+      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], details),
+      );
 
-      final readResult = await sl.getByIds({fred.id!, flintstone.id!}, details);
+      final readResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, details),
+      );
       expect(readResult.getOrRaise().items.length, 2);
       await hasCached(
         sl,
@@ -363,17 +355,15 @@ void main() {
         [details, localDetails, localAbcDetails],
       );
 
-      final localReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, localDetails);
+      final localReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, localDetails),
+      );
       expect(localReadResult.getOrRaise().items.length, 2);
       await hasCached(sl, [fred, flintstone], [details, localDetails]);
 
-      final remoteReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, refreshDetails);
+      final remoteReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, refreshDetails),
+      );
       expect(remoteReadResult.getOrRaise().items.length, 0);
       await hasNotCached(
         sl,
@@ -394,23 +384,22 @@ void main() {
       );
 
       // Write obj1 and obj2 to [page1Details] and [page2Details], respectively
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-      ], page1Details);
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        flintstone,
-      ], page2Details);
-      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        fred,
-      ], page1Details);
-      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        flintstone,
-      ], page2Details);
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred], page1Details),
+      );
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([flintstone], page2Details),
+      );
+      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred], page1Details),
+      );
+      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems(
+        gwlo([flintstone], page2Details),
+      );
 
-      final readResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, localDetails);
+      final readResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, localDetails),
+      );
       expect(readResult.getOrRaise().items.length, 2);
       await hasCached(sl, [fred], [page1Details]);
       await hasCached(sl, [flintstone], [page2Details]);
@@ -420,19 +409,17 @@ void main() {
         [details, localDetails, localAbcDetails],
       );
 
-      final localReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, localDetails);
+      final localReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, localDetails),
+      );
       expect(localReadResult.getOrRaise().items.length, 2);
 
-      final localRead2Result = await sl.getItems(localDetails);
+      final localRead2Result = await sl.getItems(grlo(localDetails));
       expect(localRead2Result.getOrRaise().items.length, 0);
 
       // Only loads object 1, which removes object 2 from all local caches
       final remoteReadResult = await sl.getByIds(
-        {fred.id!, flintstone.id!},
-        refreshDetails,
+        grido({fred.id!, flintstone.id!}, refreshDetails),
       );
       expect(remoteReadResult.getOrRaise().items.length, 1);
       expect(remoteReadResult.getOrRaise().missingItemIds, {flintstone.id!});
@@ -457,28 +444,26 @@ void main() {
           statusCode: HttpStatus.notFound,
         ),
       );
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localDetails);
-      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localDetails);
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localDetails),
+      );
+      await (sl.sources[1] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localDetails),
+      );
 
-      final readResult = await sl.getByIds({fred.id!, flintstone.id!}, details);
+      final readResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, details),
+      );
       expect(readResult.getOrRaise().items.length, 2);
 
-      final localReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, localDetails);
+      final localReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, localDetails),
+      );
       expect(localReadResult.getOrRaise().items.length, 2);
 
-      final remoteReadResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, refreshDetails);
+      final remoteReadResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, refreshDetails),
+      );
       expect(remoteReadResult, isFailure);
     });
   });
@@ -486,7 +471,7 @@ void main() {
   group('SourceList.getItems should', () {
     test('return empty sets', () async {
       final sl = getSourceList(getEmptyDelegate());
-      final result = await sl.getItems(details);
+      final result = await sl.getItems(grlo(details));
 
       // Getting no results from the server saves the value as missing and logs
       // the request as being known-empty.
@@ -502,7 +487,7 @@ void main() {
     test('load items not yet locally cached', () async {
       final sl = getSourceList(twoItemdelegate200x2);
 
-      final localReadResult = await sl.getItems(localDetails);
+      final localReadResult = await sl.getItems(grlo(localDetails));
       expect(localReadResult.getOrRaise().items.length, 0);
       // `details` is fine to pass here in place of `localDetails` because
       // `RequestType` is not factored into a RequestDetails' object's cache key
@@ -513,7 +498,7 @@ void main() {
         shouldExistAtAll: false,
       );
 
-      final remoteReadResult = await sl.getItems(refreshDetails);
+      final remoteReadResult = await sl.getItems(grlo(refreshDetails));
       expect(remoteReadResult.getOrRaise().items.length, 2);
       // `details` is fine to pass here in place of `localDetails` because
       // `RequestType` is not factored into a RequestDetails' object's cache key
@@ -522,22 +507,21 @@ void main() {
 
     test('load items already available in source', () async {
       final sl = getSourceList(twoItemdelegate200x2);
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localDetails);
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localDetails),
+      );
 
-      final localReadResult = await sl.getItems(localDetails);
+      final localReadResult = await sl.getItems(grlo(localDetails));
       expect(localReadResult.getOrRaise().items.length, 2);
 
-      final remoteReadResult = await sl.getItems(refreshDetails);
+      final remoteReadResult = await sl.getItems(grlo(refreshDetails));
       expect(remoteReadResult.getOrRaise().items.length, 2);
     });
 
     test('honor request types and cache items', () async {
       final sl = getSourceList(getRequestDelegate([twoElementResponseBody]));
 
-      final initialReadResult = await sl.getItems(localDetails);
+      final initialReadResult = await sl.getItems(grlo(localDetails));
       expect(initialReadResult.getOrRaise().items.length, 0);
       await hasNotCached(
         sl,
@@ -546,7 +530,7 @@ void main() {
         shouldExistAtAll: false,
       );
 
-      final remoteReadResult = await sl.getItems(refreshDetails);
+      final remoteReadResult = await sl.getItems(grlo(refreshDetails));
       expect(remoteReadResult.getOrRaise().items.length, 2);
       await hasCached(sl, [fred, flintstone], [details]);
     });
@@ -555,22 +539,21 @@ void main() {
       final sl = getSourceList(
         getRequestDelegate([errorBody], statusCode: HttpStatus.notFound),
       );
-      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems([
-        fred,
-        flintstone,
-      ], localDetails);
+      await (sl.sources[0] as LocalMemorySource<TestModel>).setItems(
+        gwlo([fred, flintstone], localDetails),
+      );
 
-      final remoteReadResult = await sl.getItems(refreshDetails);
+      final remoteReadResult = await sl.getItems(grlo(refreshDetails));
       expect(remoteReadResult, isFailure);
 
-      final localReadResult = await sl.getItems(localDetails);
+      final localReadResult = await sl.getItems(grlo(localDetails));
       expect(localReadResult.getOrRaise().items.length, 2);
     });
 
     test('honor filters not originally applied', () async {
       final sl = getSourceList(getRequestDelegate([twoElementResponseBody]));
 
-      final remoteReadResult = await sl.getItems(details);
+      final remoteReadResult = await sl.getItems(grlo(details));
       expect(remoteReadResult.getOrRaise().items.length, 2);
       await hasCached(sl, [fred, flintstone], [details]);
 
@@ -587,7 +570,7 @@ void main() {
       final filteredDetails = RequestDetails(
         filter: const MsgStartsWithFilter('abc'),
       );
-      final remoteReadResult = await sl.getItems(filteredDetails);
+      final remoteReadResult = await sl.getItems(grlo(filteredDetails));
       expect(remoteReadResult.getOrRaise().items.length, 2);
       await hasCached(sl, [fred, flintstone], [filteredDetails]);
       await hasNotCached(sl, [fred, flintstone], [details]);
@@ -600,9 +583,9 @@ void main() {
           twoElementResponseBody,
         ]),
       );
-      await sl.getItems(details);
+      await sl.getItems(grlo(details));
 
-      final localReadResult = await sl.getItems(localDetails);
+      final localReadResult = await sl.getItems(grlo(localDetails));
       expect(localReadResult.getOrRaise().items.length, 2);
       await hasCached(sl, [fred, flintstone], [details]);
 
@@ -618,7 +601,7 @@ void main() {
         filter: FieldEquals<TestModel, String>('msg', 'Fred', (obj) => obj.msg),
       );
 
-      final globalResults = await sl.getItems(globalMsgFredDetails);
+      final globalResults = await sl.getItems(grlo(globalMsgFredDetails));
       expect(globalResults.getOrRaise().items.length, 2);
       await hasCached(
         sl,
@@ -632,7 +615,7 @@ void main() {
     test('persist an item to all layers', () async {
       const newObj = TestModel(id: null, msg: 'new');
       final sl = getSourceList(creatableDelegate);
-      final writeResult = await sl.setItem(newObj, details);
+      final writeResult = await sl.setItem(gwo(newObj, details));
       expect(writeResult.getOrRaise().item, fred);
       // Not cached because [setItem] cannot populate the cache
       await hasNotCached(sl, [writeResult.getOrRaise().item], [details]);
@@ -641,7 +624,7 @@ void main() {
     test('persist an item to all layers from detail-style responses', () async {
       const newObj = TestModel(id: null, msg: 'new');
       final sl = getSourceList(detailStyleCreatableDelegate);
-      final writeResult = await sl.setItem(newObj, details);
+      final writeResult = await sl.setItem(gwo(newObj, details));
       expect(writeResult.getOrRaise().item, fred);
       // Not cached because [setItem] cannot populate the cache
       await hasNotCached(sl, [writeResult.getOrRaise().item], [details]);
@@ -653,7 +636,10 @@ void main() {
 
       /// Here we pass in a source list which ONLY supports updates, but that
       /// method won't be called because this POSTs and does not PUT
-      expect(sl.setItem(newObj, details), throwsA(isA<UnexpectedRequest>()));
+      expect(
+        sl.setItem(gwo(newObj, details)),
+        throwsA(isA<UnexpectedRequest>()),
+      );
     });
 
     test('not call create on existing items', () async {
@@ -663,7 +649,7 @@ void main() {
       /// Here we pass in a source list which ONLY supports POSTs, but that
       /// method won't be called because this PUTs and does not POST
       expect(
-        sl.setItem(existingObj, details),
+        sl.setItem(gwo(existingObj, details)),
         throwsA(isA<UnexpectedRequest>()),
       );
     });
@@ -675,7 +661,7 @@ void main() {
         final sl = getSourceList(
           getRequestDelegate([detailResponseBody], canCreate: true),
         );
-        final writeResult = await sl.setItem(newObj, abcDetails);
+        final writeResult = await sl.setItem(gwo(newObj, abcDetails));
         final savedObj = writeResult.getOrRaise().item;
         expect(savedObj, fred);
 
@@ -700,8 +686,7 @@ void main() {
         ),
       );
       final writeResult = await sl.setItems(
-        [newObj, newObj2],
-        localDetails,
+        gwlo([newObj, newObj2], localDetails),
       );
       expect(writeResult.getOrRaise().items.length, 2);
       await hasCached(sl, [newObj, newObj2], [details]);
@@ -718,8 +703,8 @@ void main() {
         ),
       );
       expect(
-        () => sl.setItems([newObj], refreshDetails),
-        throwsA(isA<AssertionError>()),
+        () => sl.setItems(gwlo([newObj], refreshDetails)),
+        throwsA(isA<Exception>()),
       );
     });
   });
@@ -727,10 +712,10 @@ void main() {
   group('SourceList should', () {
     test('be able to read all data', () async {
       final sl = getSourceList(getRequestDelegate([listResponseBody]));
-      await sl.setItem(fred, localDetails);
-      await sl.setItems([flintstone], localDetails);
+      await sl.setItem(gwo(fred, localDetails));
+      await sl.setItems(gwlo([flintstone], localDetails));
       final readResult = await sl.getItems(
-        RequestDetails(requestType: .allLocal),
+        grlo(RequestDetails(requestType: .allLocal)),
       );
       final items = readResult.getOrRaise().items;
       expect(items.length, equals(2));
@@ -746,25 +731,19 @@ void main() {
 
       // Set stale Fred
       await sl.setItem(
-        fred,
-        RequestDetails(
-          requestType: .local,
-          ttl: Duration.zero,
-        ),
+        gwo(fred, RequestDetails(requestType: .local, ttl: .zero)),
       );
       // Set fresh Flintstone
       await sl.setItem(
-        flintstone,
-        RequestDetails(
-          requestType: .local,
-          ttl: const Duration(days: 1),
+        gwo(
+          flintstone,
+          RequestDetails(requestType: .local, ttl: const Duration(days: 1)),
         ),
       );
 
-      final readResult = await sl.getByIds({
-        fred.id!,
-        flintstone.id!,
-      }, RequestDetails());
+      final readResult = await sl.getByIds(
+        grido({fred.id!, flintstone.id!}, RequestDetails()),
+      );
       final items = readResult.getOrRaise().items;
       expect(items.length, equals(2));
       expect(items, contains(fred));
@@ -777,14 +756,10 @@ void main() {
 
       // Set stale Flintstone
       await sl.setItems(
-        [flintstone],
-        RequestDetails(
-          requestType: .local,
-          ttl: Duration.zero,
-        ),
+        gwlo([flintstone], RequestDetails(requestType: .local, ttl: .zero)),
       );
 
-      final readResult = await sl.getItems(RequestDetails());
+      final readResult = await sl.getItems(grlo(RequestDetails()));
       final items = readResult.getOrRaise().items;
       expect(items.length, equals(1));
       expect(items, contains(fred));
@@ -796,23 +771,17 @@ void main() {
 
       // Set stale Fred
       await sl.setItems(
-        [fred],
-        RequestDetails(
-          requestType: .local,
-          ttl: Duration.zero,
-        ),
+        gwlo([fred], RequestDetails(requestType: .local, ttl: .zero)),
       );
 
-      // Fresh Flintstone
+      // Set fresh Flintstone
       await sl.setItems(
-        [flintstone],
-        RequestDetails(
-          requestType: .local,
-          ttl: const Duration(days: 1),
-        ),
+        gwlo([
+          flintstone,
+        ], RequestDetails(requestType: .local, ttl: const Duration(days: 1))),
       );
 
-      final readResult = await sl.getItems(RequestDetails());
+      final readResult = await sl.getItems(grlo(RequestDetails()));
       final items = readResult.getOrRaise().items;
       expect(items.length, equals(1));
       expect(items, contains(flintstone));
@@ -828,11 +797,11 @@ Future<void> hasCached(
   for (final (itemIndex, item) in items.indexed) {
     assert(item.id != null, '$item should all have Ids');
 
-    final byIdResult = await sl.getById(item.id!, localDetails);
+    final byIdResult = await sl.getById(gro(item.id!, localDetails));
     expect(byIdResult.getOrRaise().item, equals(item));
     for (final (requestIndex, request) in requests.indexed) {
       final c = request.localCopy();
-      final forRequestResult = await sl.getItems(c);
+      final forRequestResult = await sl.getItems(grlo(c));
       final loadedItems = forRequestResult.getOrRaise().items;
       expect(
         loadedItems,
@@ -846,7 +815,7 @@ Future<void> hasCached(
     for (final (sourceIndex, source) in sl.sources.indexed) {
       if (source is! LocalSource<TestModel>) continue;
 
-      final result = await source.getById(item.id!, details);
+      final result = await source.getById(gro(item.id!, details));
       expect(
         result.getOrRaise().item,
         equals(item),
@@ -856,7 +825,7 @@ Future<void> hasCached(
       );
 
       for (final (requestIndex, request) in requests.indexed) {
-        final result2 = await source.getItems(request.localCopy());
+        final result2 = await source.getItems(grlo(request.localCopy()));
         expect(
           result2.getOrRaise().items,
           contains(item),
@@ -878,7 +847,7 @@ Future<void> hasNotCached(
   for (final (itemIndex, item) in items.indexed) {
     assert(item.id != null, 'Cached items should all have Ids');
 
-    final byIdResult = await sl.getById(item.id!, localDetails);
+    final byIdResult = await sl.getById(gro(item.id!, localDetails));
     final loadedItem = byIdResult.getOrRaise().item;
     if (shouldExistAtAll) {
       expect(
@@ -894,7 +863,7 @@ Future<void> hasNotCached(
       );
     }
     for (final (requestIndex, request) in requests.indexed) {
-      final forRequestRersult = await sl.getItems(request.localCopy());
+      final forRequestRersult = await sl.getItems(grlo(request.localCopy()));
       expect(
         forRequestRersult.getOrRaise().items,
         isNot(contains(item)),
@@ -907,7 +876,7 @@ Future<void> hasNotCached(
     for (final (sourceIndex, source) in sl.sources.indexed) {
       if (source is! LocalSource<TestModel>) continue;
 
-      final result = await source.getById(item.id!, details);
+      final result = await source.getById(gro(item.id!, details));
       final loadedItem = result.getOrRaise().item;
       if (shouldExistAtAll) {
         expect(
