@@ -17,7 +17,7 @@ class ApiSource<T> extends Source<T> {
   }) : api = restApi,
        idsCurrentlyBeingFetched = <String>{},
        loadedItems = {},
-       timer = timer ?? BatchTimer(),
+       timer = timer ?? RealTimer(),
        queuedIds = <String>{};
 
   final _log = Logger('ApiSource<$T>');

@@ -37,7 +37,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       }
     }
     if (retryPolicy != null) {
-      _retrySub = retryPolicy!.onRetryOperation().listen((operation) {});
+      _retrySub = retryPolicy!.onRetryOperation().listen(_retryOperation);
     }
     if (connectivityService != null && retryPolicy != null) {
       _connectivitySub = connectivityService!.listen((bool status) {
@@ -152,29 +152,45 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     Future<R> Function() fn,
     R Function() connectivityFailureBuilder,
   ) async {
+    if (retryPolicy == null) {
+      return fn();
+    }
     try {
       await checkConnectivity(operation.details);
     } on NoConnectivityException {
       _log.fine('Device is offline, storing $operation for retry');
-      await retryPolicy?.storeOperationForRetry(operation, .connectivity);
+      await retryPolicy!.storeOperationForRetry(operation, .connectivity);
       return connectivityFailureBuilder();
     }
     final result = await fn();
     bool shouldRetry = false;
-    if (result is ReadFailure<T> && result.reason == .serverError) {
-      shouldRetry = true;
-    } else if (result is ReadListFailure<T> && result.reason == .serverError) {
-      shouldRetry = true;
-    } else if (result is WriteFailure<T> && result.reason == .serverError) {
-      shouldRetry = true;
-    } else if (result is WriteListFailure<T> && result.reason == .serverError) {
-      shouldRetry = true;
-    } else if (result is DeleteFailure<T> && result.reason == .serverError) {
-      shouldRetry = true;
+    FailureReason? failureReason;
+
+    switch (result) {
+      case ReadFailure<T>(:final reason) ||
+          ReadListFailure<T>(:final reason) ||
+          WriteFailure<T>(:final reason) ||
+          WriteListFailure<T>(:final reason) ||
+          DeleteFailure<T>(:final reason):
+        shouldRetry = retryPolicy!.shouldRetry(operation, reason);
+        failureReason = reason;
+      //
+      case ReadSuccess<T>() ||
+          ReadListSuccess<T>() ||
+          WriteSuccess<T>() ||
+          WriteListSuccess<T>() ||
+          DeleteSuccess<T>():
+      // Capture these just to route unhandled results to the catch-all.
+
+      case _:
+        _log.warning('Unhandled result: $result');
     }
+
     if (shouldRetry) {
-      _log.fine('Server error, storing $operation for retry');
-      await retryPolicy?.storeOperationForRetry(operation, .serverError);
+      _log.fine(
+        'Operation error: $failureReason, storing $operation for retry',
+      );
+      await retryPolicy!.storeOperationForRetry(operation, failureReason!);
     }
     return result;
   }
@@ -520,17 +536,17 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   Future<void> _retryOperation(Operation<T> operation) async {
     switch (operation) {
       case ReadOperation<T>():
-        unawaited(getById(operation.retry<ReadOperation<T>>()));
+        await getById(operation);
       case ReadListOperation<T>():
-        unawaited(getItems(operation.retry<ReadListOperation<T>>()));
+        await getItems(operation);
       case ReadByIdsOperation<T>():
-        unawaited(getByIds(operation.retry<ReadByIdsOperation<T>>()));
+        await getByIds(operation);
       case WriteOperation<T>():
-        unawaited(setItem(operation.retry<WriteOperation<T>>()));
+        await setItem(operation);
       case WriteListOperation<T>():
-        unawaited(setItems(operation.retry<WriteListOperation<T>>()));
+        await setItems(operation);
       case DeleteOperation<T>():
-        unawaited(delete(operation.retry<DeleteOperation<T>>()));
+        await delete(operation);
     }
   }
 

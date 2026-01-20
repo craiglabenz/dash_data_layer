@@ -77,4 +77,17 @@ sealed class Operation<T> with _$Operation<T> {
 
   /// Increments the retry count of this operation.
   R retry<R>() => copyWith(attemptNumber: attemptNumber + 1) as R;
+
+  /// True if this operation is a read.
+  bool get isRead => switch (this) {
+    ReadOperation<T>() ||
+    ReadListOperation<T>() ||
+    ReadByIdsOperation<T>() => true,
+    WriteOperation<T>() ||
+    WriteListOperation<T>() ||
+    DeleteOperation<T>() => false,
+  };
+
+  /// True if this operation is a write.
+  bool get isWrite => !isRead;
 }

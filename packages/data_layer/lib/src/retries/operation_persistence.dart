@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:data_layer/data_layer.dart';
+import 'package:meta/meta.dart';
 
 /// {@template OperationPersistence}
 /// Persistence engine for failed operations, powering retry at a later time.
@@ -44,26 +45,36 @@ abstract class OperationPersistence<T> {
 /// lost. If you are using this class, this should be desired.
 class InMemoryOperationPersistence<T> implements OperationPersistence<T> {
   /// {@macro InMemoryOperationPersistence}
-  InMemoryOperationPersistence();
+  InMemoryOperationPersistence([this._scheduler = const RealScheduler()]);
 
-  final _streamController = StreamController<Operation<T>>.broadcast();
+  /// Test-friendly constructor.
+  @visibleForTesting
+  factory InMemoryOperationPersistence.test() =>
+      InMemoryOperationPersistence(TestFriendlyScheduler());
+
+  final _retryTimers = <ITimer>[];
   final _savedOperations = <Operation<T>>[];
   final _scheduledOperations = <String, Operation<T>>{};
-  final _retryTimers = <Timer>[];
+  final _streamController = StreamController<Operation<T>>.broadcast();
+
+  final Scheduler _scheduler;
 
   @override
   Future<void> save(Operation<T> operation) async {
-    _savedOperations.add(operation);
+    _savedOperations.add(operation.retry());
   }
 
   @override
   Future<void> schedule(Operation<T> operation) async {
     _scheduledOperations[operation.operationId] = operation;
     _retryTimers.add(
-      Timer(Duration(seconds: pow(2, operation.attemptNumber).toInt()), () {
-        _streamController.add(operation);
-        _scheduledOperations.remove(operation.operationId);
-      }),
+      _scheduler.schedule(
+        Duration(seconds: pow(2, operation.attemptNumber).toInt()),
+        () {
+          _streamController.add(operation.retry());
+          _scheduledOperations.remove(operation.operationId);
+        },
+      ),
     );
   }
 
@@ -85,8 +96,11 @@ class InMemoryOperationPersistence<T> implements OperationPersistence<T> {
   @override
   Future<void> close() async {
     for (final timer in _retryTimers) {
-      timer.cancel();
+      if (!timer.isCompleted) {
+        timer.cancel();
+      }
     }
+    _retryTimers.clear();
     await _streamController.close();
   }
 }

@@ -97,7 +97,7 @@ void main() {
               headers: respHeaders,
             );
           },
-          timer: BatchTimer(),
+          timer: RealTimer(),
         );
         final result = await src.getById(gro('abc', RequestDetails()));
         expect(result, isA<ReadSuccess<TestModel>>());

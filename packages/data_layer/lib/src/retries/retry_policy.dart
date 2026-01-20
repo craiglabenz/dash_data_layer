@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:data_layer/data_layer.dart';
+import 'package:logging/logging.dart';
 
 /// {@template RetryPolicy}
 /// Policy for handling retries of failed requests.
@@ -29,6 +30,9 @@ abstract class RetryPolicy<T> {
     Operation<T> operation,
     FailureReason reason,
   );
+
+  /// Determines whether an operation should be retried.
+  bool shouldRetry(Operation<T> operation, FailureReason reason);
 
   /// Releases all resources.
   Future<void> close();
@@ -83,6 +87,8 @@ class DefaultRetryPolicy<T> extends RetryPolicy<T> {
   /// {@macro OperationPersistence}
   final OperationPersistence<T> writesPersistence;
 
+  final _log = Logger('DefaultRetryPolicy<$T>');
+
   @override
   Future<List<Operation<T>>> onReconnected() async {
     return [
@@ -98,12 +104,28 @@ class DefaultRetryPolicy<T> extends RetryPolicy<T> {
   ) async {
     switch (reason) {
       case .connectivity:
-        await readsPersistence.save(operation);
+        await (operation.isRead
+            ? readsPersistence.save(operation)
+            : writesPersistence.save(operation));
       case .serverError:
-        await readsPersistence.schedule(operation);
+        await (operation.isRead
+            ? readsPersistence.schedule(operation)
+            : writesPersistence.schedule(operation));
       case .badRequest:
       // Do nothing
     }
+  }
+
+  @override
+  bool shouldRetry(Operation<T> operation, FailureReason reason) {
+    if (operation.attemptNumber >= maxRetries + 1) {
+      _log.fine('Abandoning $operation after $maxRetries retries');
+      return false;
+    }
+    return switch (reason) {
+      FailureReason.badRequest => false,
+      FailureReason.connectivity || FailureReason.serverError => true,
+    };
   }
 
   @override
