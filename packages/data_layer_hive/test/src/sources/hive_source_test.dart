@@ -4,6 +4,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
+import '../../operation_builders.dart';
 import '../models/test_model.dart';
 
 class MockHive extends Mock implements HiveInterface {}
@@ -75,12 +76,12 @@ void main() {
           () => mockItemsBox.put(item.id, item),
         ).thenAnswer((_) => Future.value());
 
-        final writeResult = await source.setItem(item, details);
+        final writeResult = await source.setItem(gwo(item, details));
         expect(writeResult, isSuccess);
         verifyNever(() => mockItemsExpiryBox.put(item.id, any()));
 
         when(() => mockItemsBox.get(item.id)).thenReturn(item);
-        final readResult = await source.getById(item.id!, details);
+        final readResult = await source.getById(gro(item.id!, details));
         expect(readResult, isSuccess);
         expect((readResult as ReadSuccess<TestModel>).item, item);
       },
@@ -98,7 +99,7 @@ void main() {
         () => mockItemsExpiryBox.put(item.id, any()),
       ).thenAnswer((_) => Future.value());
 
-      final writeResult = await source.setItem(item, ttlDetails);
+      final writeResult = await source.setItem(gwo(item, ttlDetails));
       verify(
         () => mockItemsExpiryBox.put(item.id, any()),
       ).called(1);
@@ -109,7 +110,7 @@ void main() {
         () => mockItemsExpiryBox.get(item.id),
       ).thenReturn(DateTime.now().add(const Duration(days: 1)));
 
-      final readResult = await source.getById(item.id!, details);
+      final readResult = await source.getById(gro(item.id!, details));
       expect(readResult, isSuccess);
       expect(readResult.itemOrRaise(), item);
     });
@@ -125,7 +126,7 @@ void main() {
         () => mockItemsExpiryBox.put(item.id, any()),
       ).thenAnswer((_) => Future.value());
 
-      final writeResult = await source.setItem(item, ttlDetails);
+      final writeResult = await source.setItem(gwo(item, ttlDetails));
       verify(
         () => mockItemsExpiryBox.put(item.id, any()),
       ).called(1);
@@ -136,7 +137,7 @@ void main() {
         () => mockItemsExpiryBox.get(item.id),
       ).thenReturn(DateTime.now().subtract(ttl));
 
-      final readResult = await source.getById(item.id!, details);
+      final readResult = await source.getById(gro(item.id!, details));
       expect(readResult, isSuccess);
       expect(readResult.itemOrRaise(), isNull);
     });
@@ -150,7 +151,7 @@ void main() {
           () => mockItemsBox.put('abc', itemWithId),
         ).thenAnswer((_) => Future.value());
 
-        final writeResult = await source.setItem(item, details);
+        final writeResult = await source.setItem(gwo(item, details));
         expect(writeResult, isSuccess);
         expect((writeResult as WriteSuccess<TestModel>).item, itemWithId);
       },
@@ -182,7 +183,7 @@ void main() {
           () => mockItemsBox.putAll({item1.id: item1, item2.id: item2}),
         ).thenAnswer((_) => Future.value());
 
-        final writeResult = await source.setItems(items, details);
+        final writeResult = await source.setItems(gwlo(items, details));
         expect(writeResult, isSuccess);
 
         verify(
@@ -206,7 +207,7 @@ void main() {
           () => mockItemsBox.put(item.id, item),
         ).thenAnswer((_) => Future.value());
 
-        await source.setItem(item, details);
+        await source.setItem(gwo(item, details));
 
         when(
           () => mockItemsBox.deleteAll(ids),
@@ -271,7 +272,7 @@ void main() {
         item2.id: DateTime.now().add(const Duration(days: 1)),
       });
       final readResult = await source.getItems(
-        RequestDetails(requestType: .allLocal),
+        grlo(RequestDetails(requestType: .allLocal)),
       );
       expect(readResult, isSuccess);
       expect(readResult.itemsOrRaise(), [item1, item2]);
@@ -288,7 +289,7 @@ void main() {
         item1.id: DateTime.now().subtract(const Duration(days: 1)),
       });
       final readResult = await source.getItems(
-        RequestDetails(requestType: .allLocal),
+        grlo(RequestDetails(requestType: .allLocal)),
       );
       expect(readResult, isSuccess);
       expect(readResult.itemsOrRaise(), [item2]);
@@ -306,7 +307,7 @@ void main() {
         item2.id: DateTime.now().subtract(const Duration(days: 1)),
       });
       final readResult = await source.getItems(
-        RequestDetails(requestType: .allLocal),
+        grlo(RequestDetails(requestType: .allLocal)),
       );
       expect(readResult, isSuccess);
       expect(readResult.itemsOrRaise(), [item1]);

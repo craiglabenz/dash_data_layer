@@ -54,7 +54,7 @@ Operation<T> _$OperationFromJson<T>(
 /// @nodoc
 mixin _$Operation<T> {
 
- String get operationId; RequestDetails get details;// required List<Json> data,
+ String get operationId;@RequestDetailsConverter() RequestDetails get details;// required List<Json> data,
  DateTime get createdAt; int get attemptNumber;
 /// Create a copy of Operation
 /// with the given fields replaced by the non-null parameter values.
@@ -88,7 +88,7 @@ abstract mixin class $OperationCopyWith<T,$Res>  {
   factory $OperationCopyWith(Operation<T> value, $Res Function(Operation<T>) _then) = _$OperationCopyWithImpl;
 @useResult
 $Res call({
- String operationId, RequestDetails details, DateTime createdAt, int attemptNumber
+ String operationId,@RequestDetailsConverter() RequestDetails details, DateTime createdAt, int attemptNumber
 });
 
 
@@ -208,7 +208,7 @@ return delete(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String operationId,  String itemId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItem,TResult Function( String operationId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItems,TResult Function( String operationId,  Set<String> itemIds,  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getByIds,TResult Function( String operationId,  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)?  setItem,TResult Function( String operationId,  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)?  setItems,TResult Function( String operationId,  String itemId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  delete,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItem,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItems,TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getByIds,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)?  setItem,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)?  setItems,TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  delete,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case ReadOperation() when getItem != null:
 return getItem(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case ReadListOperation() when getItems != null:
@@ -234,7 +234,7 @@ return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String operationId,  String itemId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getItem,required TResult Function( String operationId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getItems,required TResult Function( String operationId,  Set<String> itemIds,  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getByIds,required TResult Function( String operationId,  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)  setItem,required TResult Function( String operationId,  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)  setItems,required TResult Function( String operationId,  String itemId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)  delete,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getItem,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getItems,required TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getByIds,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)  setItem,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)  setItems,required TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  delete,}) {final _that = this;
 switch (_that) {
 case ReadOperation():
 return getItem(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case ReadListOperation():
@@ -256,7 +256,7 @@ return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String operationId,  String itemId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItem,TResult? Function( String operationId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItems,TResult? Function( String operationId,  Set<String> itemIds,  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getByIds,TResult? Function( String operationId,  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)?  setItem,TResult? Function( String operationId,  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)?  setItems,TResult? Function( String operationId,  String itemId,  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  delete,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItem,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItems,TResult? Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getByIds,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)?  setItem,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)?  setItems,TResult? Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  delete,}) {final _that = this;
 switch (_that) {
 case ReadOperation() when getItem != null:
 return getItem(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case ReadListOperation() when getItems != null:
@@ -276,12 +276,12 @@ return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that
 @JsonSerializable(genericArgumentFactories: true)
 
 class ReadOperation<T> extends Operation<T> {
-  const ReadOperation({required this.operationId, required this.itemId, required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'getItem',super._();
+  const ReadOperation({required this.operationId, required this.itemId, @RequestDetailsConverter() required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'getItem',super._();
   factory ReadOperation.fromJson(Map<String, dynamic> json,T Function(Object?) fromJsonT) => _$ReadOperationFromJson(json,fromJsonT);
 
 @override final  String operationId;
  final  String itemId;
-@override final  RequestDetails details;
+@override@RequestDetailsConverter() final  RequestDetails details;
 @override final  DateTime createdAt;
 @override@JsonKey() final  int attemptNumber;
 
@@ -322,7 +322,7 @@ abstract mixin class $ReadOperationCopyWith<T,$Res> implements $OperationCopyWit
   factory $ReadOperationCopyWith(ReadOperation<T> value, $Res Function(ReadOperation<T>) _then) = _$ReadOperationCopyWithImpl;
 @override @useResult
 $Res call({
- String operationId, String itemId, RequestDetails details, DateTime createdAt, int attemptNumber
+ String operationId, String itemId,@RequestDetailsConverter() RequestDetails details, DateTime createdAt, int attemptNumber
 });
 
 
@@ -357,11 +357,11 @@ as int,
 @JsonSerializable(genericArgumentFactories: true)
 
 class ReadListOperation<T> extends Operation<T> {
-  const ReadListOperation({required this.operationId, required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'getItems',super._();
+  const ReadListOperation({required this.operationId, @RequestDetailsConverter() required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'getItems',super._();
   factory ReadListOperation.fromJson(Map<String, dynamic> json,T Function(Object?) fromJsonT) => _$ReadListOperationFromJson(json,fromJsonT);
 
 @override final  String operationId;
-@override final  RequestDetails details;
+@override@RequestDetailsConverter() final  RequestDetails details;
 @override final  DateTime createdAt;
 @override@JsonKey() final  int attemptNumber;
 
@@ -402,7 +402,7 @@ abstract mixin class $ReadListOperationCopyWith<T,$Res> implements $OperationCop
   factory $ReadListOperationCopyWith(ReadListOperation<T> value, $Res Function(ReadListOperation<T>) _then) = _$ReadListOperationCopyWithImpl;
 @override @useResult
 $Res call({
- String operationId, RequestDetails details, DateTime createdAt, int attemptNumber
+ String operationId,@RequestDetailsConverter() RequestDetails details, DateTime createdAt, int attemptNumber
 });
 
 
@@ -436,7 +436,7 @@ as int,
 @JsonSerializable(genericArgumentFactories: true)
 
 class ReadByIdsOperation<T> extends Operation<T> {
-  const ReadByIdsOperation({required this.operationId, required final  Set<String> itemIds, required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): _itemIds = itemIds,$type = $type ?? 'getByIds',super._();
+  const ReadByIdsOperation({required this.operationId, required final  Set<String> itemIds, @RequestDetailsConverter() required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): _itemIds = itemIds,$type = $type ?? 'getByIds',super._();
   factory ReadByIdsOperation.fromJson(Map<String, dynamic> json,T Function(Object?) fromJsonT) => _$ReadByIdsOperationFromJson(json,fromJsonT);
 
 @override final  String operationId;
@@ -447,7 +447,7 @@ class ReadByIdsOperation<T> extends Operation<T> {
   return EqualUnmodifiableSetView(_itemIds);
 }
 
-@override final  RequestDetails details;
+@override@RequestDetailsConverter() final  RequestDetails details;
 @override final  DateTime createdAt;
 @override@JsonKey() final  int attemptNumber;
 
@@ -488,7 +488,7 @@ abstract mixin class $ReadByIdsOperationCopyWith<T,$Res> implements $OperationCo
   factory $ReadByIdsOperationCopyWith(ReadByIdsOperation<T> value, $Res Function(ReadByIdsOperation<T>) _then) = _$ReadByIdsOperationCopyWithImpl;
 @override @useResult
 $Res call({
- String operationId, Set<String> itemIds, RequestDetails details, DateTime createdAt, int attemptNumber
+ String operationId, Set<String> itemIds,@RequestDetailsConverter() RequestDetails details, DateTime createdAt, int attemptNumber
 });
 
 
@@ -523,11 +523,11 @@ as int,
 @JsonSerializable(genericArgumentFactories: true)
 
 class WriteOperation<T> extends Operation<T> {
-  const WriteOperation({required this.operationId, required this.details, required this.item, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'setItem',super._();
+  const WriteOperation({required this.operationId, @RequestDetailsConverter() required this.details, required this.item, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'setItem',super._();
   factory WriteOperation.fromJson(Map<String, dynamic> json,T Function(Object?) fromJsonT) => _$WriteOperationFromJson(json,fromJsonT);
 
 @override final  String operationId;
-@override final  RequestDetails details;
+@override@RequestDetailsConverter() final  RequestDetails details;
 // required Json data,
  final  T item;
 @override final  DateTime createdAt;
@@ -570,7 +570,7 @@ abstract mixin class $WriteOperationCopyWith<T,$Res> implements $OperationCopyWi
   factory $WriteOperationCopyWith(WriteOperation<T> value, $Res Function(WriteOperation<T>) _then) = _$WriteOperationCopyWithImpl;
 @override @useResult
 $Res call({
- String operationId, RequestDetails details, T item, DateTime createdAt, int attemptNumber
+ String operationId,@RequestDetailsConverter() RequestDetails details, T item, DateTime createdAt, int attemptNumber
 });
 
 
@@ -605,11 +605,11 @@ as int,
 @JsonSerializable(genericArgumentFactories: true)
 
 class WriteListOperation<T> extends Operation<T> {
-  const WriteListOperation({required this.operationId, required this.details, required this.items, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'setItems',super._();
+  const WriteListOperation({required this.operationId, @RequestDetailsConverter() required this.details, required this.items, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'setItems',super._();
   factory WriteListOperation.fromJson(Map<String, dynamic> json,T Function(Object?) fromJsonT) => _$WriteListOperationFromJson(json,fromJsonT);
 
 @override final  String operationId;
-@override final  RequestDetails details;
+@override@RequestDetailsConverter() final  RequestDetails details;
  final  Iterable<T> items;
 // required List<Json> data,
 @override final  DateTime createdAt;
@@ -652,7 +652,7 @@ abstract mixin class $WriteListOperationCopyWith<T,$Res> implements $OperationCo
   factory $WriteListOperationCopyWith(WriteListOperation<T> value, $Res Function(WriteListOperation<T>) _then) = _$WriteListOperationCopyWithImpl;
 @override @useResult
 $Res call({
- String operationId, RequestDetails details, Iterable<T> items, DateTime createdAt, int attemptNumber
+ String operationId,@RequestDetailsConverter() RequestDetails details, Iterable<T> items, DateTime createdAt, int attemptNumber
 });
 
 
@@ -687,12 +687,12 @@ as int,
 @JsonSerializable(genericArgumentFactories: true)
 
 class DeleteOperation<T> extends Operation<T> {
-  const DeleteOperation({required this.operationId, required this.itemId, required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'delete',super._();
+  const DeleteOperation({required this.operationId, required this.itemId, @RequestDetailsConverter() required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'delete',super._();
   factory DeleteOperation.fromJson(Map<String, dynamic> json,T Function(Object?) fromJsonT) => _$DeleteOperationFromJson(json,fromJsonT);
 
 @override final  String operationId;
  final  String itemId;
-@override final  RequestDetails details;
+@override@RequestDetailsConverter() final  RequestDetails details;
 @override final  DateTime createdAt;
 @override@JsonKey() final  int attemptNumber;
 
@@ -733,7 +733,7 @@ abstract mixin class $DeleteOperationCopyWith<T,$Res> implements $OperationCopyW
   factory $DeleteOperationCopyWith(DeleteOperation<T> value, $Res Function(DeleteOperation<T>) _then) = _$DeleteOperationCopyWithImpl;
 @override @useResult
 $Res call({
- String operationId, String itemId, RequestDetails details, DateTime createdAt, int attemptNumber
+ String operationId, String itemId,@RequestDetailsConverter() RequestDetails details, DateTime createdAt, int attemptNumber
 });
 
 

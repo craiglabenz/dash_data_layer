@@ -562,33 +562,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   String toString() => 'SourceList<$T>(sources: $sources)';
 }
 
-// /// Variant of a [SourceList] which retries writes or deletes which fail due to
-// /// connectivity issues. Read requests are not scheduled to be retried by this
-// /// mechanism.
-// class OfflineRetriableSourceList<T> extends SourceList<T> {
-//   /// Creates an instance of [OfflineRetriableSourceList].
-//   OfflineRetriableSourceList({
-//     required super.sources,
-//     required super.bindings,
-//     required this.offlinePolicy,
-//     super.connectivityService,
-//   });
-
-//   /// Offline policy for this [SourceList]. If this is supplied, then writes
-//   /// and deletes that fail due to connectivity issues will be persisted
-//   /// locally and retried automatically based on the policy.
-//   final OfflinePolicy offlinePolicy;
-
-//   @override
-//   Future<WriteResult<T>> setItem(T item, RequestDetails details) async {
-//     final result = await super.setItem(item, details);
-//     if (result is WriteFailure<T> && result.reason == .connectivity) {
-//       offlinePolicy.saveOperation(result);
-//     }
-//     return result;
-//   }
-// }
-
 /// Indicates whether a given [Source] was queried within a request, which is
 /// used when during the write-through cache phase.
 class MatchedSource<T> {

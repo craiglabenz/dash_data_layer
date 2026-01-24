@@ -1,6 +1,7 @@
 import 'package:crypt/crypt.dart';
 import 'package:data_layer/data_layer.dart';
 import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' show JsonConverter;
 
 /// The product of [RequestDetails.cacheKey].
 typedef CacheKey = String;
@@ -59,8 +60,13 @@ class RequestDetails extends Equatable {
     filter: data['filter'] != null
         ? Filter.fromJson(data['filter']! as Json)
         : null,
-    pagination: Pagination.fromJson(data['pagination']! as Json),
-    requestType: RequestType.values.byName(data['requestType']! as String),
+    pagination: data['pagination'] != null
+        ? Pagination.fromJson(data['pagination']! as Json)
+        : null,
+    requestType: RequestType.values.byName(
+      (data['requestType'] ?? RequestType.global.name) as String,
+    ),
+    shouldRetry: data['shouldRetry'] as bool? ?? true,
     ttl: data['ttl'] != null
         ? Duration(microseconds: data['ttl']! as int)
         : null,
@@ -69,16 +75,15 @@ class RequestDetails extends Equatable {
   /// Serializes this request information to send to the server.
   Json toJson() => <String, Object?>{
     'filter': filter?.toJson(),
-    'requestType': requestType.name,
     'pagination': pagination?.toJson(),
+    'requestType': requestType.name,
+    'shouldRetry': shouldRetry,
     'ttl': ttl?.inMicroseconds,
   };
 
-  /// True if this request should be retried on connectivity issue or
-  /// server error.
-  ///
-  /// Retries are not triggered when requests are malformed and rejected with
-  /// 400-style responses.
+  /// True if this request should be retried according to a [RetryPolicy]. Note
+  /// that this does not guarantee retries; it merely means the [Operation] is
+  /// opted-in to the chance at a retry, according to policy.
   ///
   /// This field is not ever sent to the server, as it is a local detail. It is
   /// also not used in the cache key, as it is operational and not a property
@@ -113,7 +118,9 @@ class RequestDetails extends Equatable {
     ttl,
   ];
 
-  /// Duration after which the data should be considered stale.
+  /// Duration after which cached data should be considered stale. Supplying a
+  /// non-null value to this can force cache misses from local sources which
+  /// contain data that is older than this duration.
   final Duration? ttl;
 
   /// Cache-key without any pagination, used to group up paginated requests
@@ -254,4 +261,18 @@ class Pagination extends Equatable {
   /// Serializes this pagination for use in a request.
   Params toParams() => (toJson()..removeWhere((key, value) => value == null))
       .cast<String, String>();
+}
+
+/// {@template RequestDetailsConverter}
+/// Converter for [RequestDetails] to be used in freezed classes.
+/// {@endtemplate}
+class RequestDetailsConverter extends JsonConverter<RequestDetails, Json> {
+  /// {@macro RequestDetailsConverter}
+  const RequestDetailsConverter();
+
+  @override
+  RequestDetails fromJson(Json json) => RequestDetails.fromJson(json);
+
+  @override
+  Json toJson(RequestDetails object) => object.toJson();
 }

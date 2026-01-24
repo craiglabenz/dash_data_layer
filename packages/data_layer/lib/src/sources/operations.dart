@@ -1,4 +1,5 @@
-import 'package:data_layer/data_layer.dart' show RequestDetails;
+import 'package:data_layer/data_layer.dart'
+    show RequestDetails, RequestDetailsConverter;
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'operations.freezed.dart';
@@ -19,6 +20,7 @@ sealed class Operation<T> with _$Operation<T> {
   const factory Operation.getItem({
     required String operationId,
     required String itemId,
+    @RequestDetailsConverter() //
     required RequestDetails details,
     required DateTime createdAt,
     @Default(0) int attemptNumber,
@@ -27,6 +29,7 @@ sealed class Operation<T> with _$Operation<T> {
   /// A multi-item read operation that failed.
   const factory Operation.getItems({
     required String operationId,
+    @RequestDetailsConverter() //
     required RequestDetails details,
     required DateTime createdAt,
     @Default(0) int attemptNumber,
@@ -36,6 +39,7 @@ sealed class Operation<T> with _$Operation<T> {
   const factory Operation.getByIds({
     required String operationId,
     required Set<String> itemIds,
+    @RequestDetailsConverter() //
     required RequestDetails details,
     required DateTime createdAt,
     @Default(0) int attemptNumber,
@@ -44,6 +48,7 @@ sealed class Operation<T> with _$Operation<T> {
   /// A single item write operation that failed.
   const factory Operation.setItem({
     required String operationId,
+    @RequestDetailsConverter() //
     required RequestDetails details,
     // required Json data,
     required T item,
@@ -54,6 +59,7 @@ sealed class Operation<T> with _$Operation<T> {
   /// A multi-item write operation that failed.
   const factory Operation.setItems({
     required String operationId,
+    @RequestDetailsConverter() //
     required RequestDetails details,
     required Iterable<T> items,
     // required List<Json> data,
@@ -65,6 +71,8 @@ sealed class Operation<T> with _$Operation<T> {
   const factory Operation.delete({
     required String operationId,
     required String itemId,
+
+    @RequestDetailsConverter() //
     required RequestDetails details,
     required DateTime createdAt,
     @Default(0) int attemptNumber,

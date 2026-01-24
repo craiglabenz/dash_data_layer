@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:data_layer/data_layer.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 
 /// {@template RetryPolicy}
 /// Policy for handling retries of failed requests.
@@ -32,7 +33,13 @@ abstract class RetryPolicy<T> {
   );
 
   /// Determines whether an operation should be retried.
-  bool shouldRetry(Operation<T> operation, FailureReason reason);
+  @mustCallSuper
+  bool shouldRetry(Operation<T> operation, FailureReason reason) {
+    if (!operation.details.shouldRetry) {
+      return false;
+    }
+    return true;
+  }
 
   /// Releases all resources.
   Future<void> close();
@@ -118,6 +125,10 @@ class DefaultRetryPolicy<T> extends RetryPolicy<T> {
 
   @override
   bool shouldRetry(Operation<T> operation, FailureReason reason) {
+    final superShouldRetry = super.shouldRetry(operation, reason);
+    if (!superShouldRetry) {
+      return false;
+    }
     if (operation.attemptNumber >= maxRetries + 1) {
       _log.fine('Abandoning $operation after $maxRetries retries');
       return false;

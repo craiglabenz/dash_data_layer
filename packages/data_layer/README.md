@@ -46,6 +46,7 @@ Understanding the `SourceList` is key to understanding `pkg:data_layer`. See the
 - [Filtering data](#filtering-data)
 - [Pagination](#pagination)
 - [Managing cached data](#managing-cached-data)
+- [Retrying operations](#retrying-operations)
 - [Creating a Local Source](#creating-a-local-source)
 - [Extending a Local Source](#extending-a-local-source)
 - [Creating a Remote Source](#creating-a-remote-source)
@@ -61,6 +62,7 @@ Understanding the `SourceList` is key to understanding `pkg:data_layer`. See the
 - Write-thru caching of loaded data
 - Deterministic invalidation of cached data
 - Extensibility to work with any data source, including Hive, SQLite, ServerPod, Firebase, etc.
+- Failed operation retry, including exponential backoff and connectivity management
 
 ## Getting started
 
@@ -69,6 +71,12 @@ Add the following to your `pubspec.yaml`:
 ```yaml
 dependencies:
   data_layer: latest
+
+  # Optional, but allows data_layer caches to survive application restarts
+  data_layer_hive: latest
+
+  # Optional, but allows data_layer Repositories to manage lost connectivity
+  data_layer_flutter: latest
 ```
 
 ## Data layer principles
@@ -93,7 +101,7 @@ The `Repository` class is the primary entry point for your application to access
 
 ```dart
 class UserRepository extends Repository<User> {
-  UserRepository(SourceList<User> sourceList) : super(sourceList);
+  UserRepository(super.sourceList);
 }
 ```
 
@@ -119,6 +127,26 @@ final userRepository = UserRepository(
 ```
 
 You should always put more local, more immediate sources first, as they will be read first.
+
+Optionally, you can activate retries by providing a `RetryPolicy` to the `SourceList` constructor.
+
+```dart
+final userRepository = UserRepository(
+  SourceList<User>(
+    bindings: userBindings,
+    retryPolicy: DefaultRetryPolicy(...),
+    sources: [
+      LocalSource<User>(bindings: userBindings),
+      ApiSource<User>(
+        bindings: userBindings,
+        restClient: restClient,
+      ),
+    ],
+  ),
+);
+```
+
+For more information on `DefaultRetryPolicy`, see [Retrying operations](#retrying-operations).
 
 ## Understanding the SourceList
 
@@ -478,6 +506,35 @@ await userRepository.clear();
 // Clear data for a specific request
 await userRepository.clearForRequest(details);
 ```
+
+## Retrying operations
+
+To activate Data Layer's automatic retry capabilities, provide `RetryPolicy()` object to a `SourceList`.
+
+Reasonable defaults are provided by the `DefaultRetryPolicy` class, but that still requires that you provide a `readsPersistence` and `writesPersistence` engine.
+
+### OperationPersistence
+
+The concept of "operation persistence" is to store a complete representation of any read or write operation that you want to retry. This is useful for operations that fail due to connectivity issues or server errors.
+
+`DefaultRetryPolicy` uses two `OperationPersistence` objects to store failed operations: one for reads and one for writes. The reason for this is because reads have no side effects and so can safely be retried the next time the data is requested, even if that is not until the next time the app launches. Writes, on the other hand, are expected to have side effects, so they are saved in a Hive box for more durable retry logic.
+
+For this reason, the typical way to use `DefaultRetryPolicy` is like so:
+
+```dart
+final retryPolicy = DefaultRetryPolicy(
+  readsPersistence: InMemoryOperationPersistence(),
+  writesPersistence: HiveOperationPersistence(),
+  // Optional, but recommended to provide a non-null value.
+  maxRetries: 3,
+);
+```
+
+### Opting out of retries
+
+Setting the `RequestDetails.shouldRetry` property to `false` will cause the `SourceList` to not retry the operation.
+
+> Note: It is possible to implement a faulty `RetryPolicy` class which fails to honor this field, so don't do that.
 
 ## Creating a Local Source
 
