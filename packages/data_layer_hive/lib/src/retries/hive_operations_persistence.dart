@@ -25,7 +25,8 @@ class HiveOperationsPersistence<T>
   /// Unique base name for the Hive boxes.
   ///
   /// This will be used to create two boxes:
-  /// - `[name]_saved` for operations to be retried later (e.g. on reconnection).
+  /// - `[name]_saved` for operations to be retried later (e.g. on
+  ///    reconnection).
   /// - `[name]_scheduled` for operations with an active backoff timer.
   final String name;
 

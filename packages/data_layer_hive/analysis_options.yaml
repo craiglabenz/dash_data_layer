@@ -9,6 +9,9 @@ analyzer:
   errors:
     todo: ignore
     document_ignores: ignore
+  exclude:
+    - "**.freezed.dart"
+    - "**.g.dart"
 
 formatter:
   trailing_commas: preserve

@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_positional_boolean_parameters
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -16,7 +17,9 @@ class ConnectivityPlusStream extends ConnectivityService {
     },
     Connectivity? connectivity,
   }) : _connectivity = connectivity ?? Connectivity() {
-    _connectivity.onConnectivityChanged.listen(_handleConnectivityChanged);
+    _connectivitySub = _connectivity.onConnectivityChanged.listen(
+      _handleConnectivityChanged,
+    );
     _controller = StreamController<bool>.broadcast();
 
     unawaited(
@@ -26,6 +29,8 @@ class ConnectivityPlusStream extends ConnectivityService {
 
   /// pkg:connectivity_plus resource.
   final Connectivity _connectivity;
+
+  late final StreamSubscription<List<ConnectivityResult>> _connectivitySub;
 
   /// Not all connectivity modes are created equally. Which modes amount to
   /// connectivity for your purposes is configurable.
@@ -53,12 +58,11 @@ class ConnectivityPlusStream extends ConnectivityService {
   }
 
   @override
-  // ignore: avoid_positional_boolean_parameters
   StreamSubscription<bool> listen(void Function(bool) fn) {
     final sub = _controller.stream.listen(fn);
-    unawaited(
-      isConnected.then((resolvedIsConnected) => fn(resolvedIsConnected)),
-    );
+    if (_isConnected != null) {
+      fn(_isConnected!);
+    }
     return sub;
   }
 
@@ -69,5 +73,11 @@ class ConnectivityPlusStream extends ConnectivityService {
       return _completer!.future;
     }
     return Future.value(_isConnected!);
+  }
+
+  @override
+  void dispose() {
+    unawaited(_controller.close());
+    unawaited(_connectivitySub.cancel());
   }
 }

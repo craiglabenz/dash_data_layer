@@ -1,39 +1,38 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+[![pub package](https://img.shields.io/pub/v/data_layer_flutter.svg)](https://pub.dartlang.org/packages/data_layer_flutter)
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+# Data Layer Flutter
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+An add-on to `pkg:data_layer` which provides Flutter-specific implementations of various interfaces.
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+See [`pkg:data_layer`](https://pub.dev/packages/data_layer) for more information.
 
-## Features
+# Index
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+- [Getting Started](#getting-started)
+- [Creating a HiveSource](#creating-a-hivesource)
 
 ## Getting started
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+Add the following to your `pubspec.yaml`:
 
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
-```dart
-const like = 'sample';
+```yaml
+dependencies:
+  connectivity_plus: latest
+  data_layer: ^0.0.2-rc.1
+  data_layer_flutter: ^0.0.2-rc.1
 ```
 
-## Additional information
+## Creating a SourceList with Connectivity awareness
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+To enable retry policy with extra-smart connectivity awareness, provide not only a value for `retryPolicy`, but also the `pkg:connectivity_plus`-powered `ConnectivityService`.
+
+```dart
+SourceList(
+  connectivityService: ConnectivityPlusStream(),
+  retryPolicy: DefaultRetryPolicy(),
+  sources: [
+    ...
+  ],
+)
+
+

@@ -1,7 +1,12 @@
 name: data_layer_flutter
-description: "A new Flutter package project."
-version: 0.0.2
-homepage:
+description: Provides Flutter-specific bindings for pkg:data_layer.
+version: 0.0.2-rc.1
+repository: https://github.com/craiglabenz/dash_data_layer
+
+topics:
+  - caching
+  - persistence
+  - data-layer
 
 environment:
   sdk: ^3.10.0
@@ -9,17 +14,16 @@ environment:
 
 dependencies:
   connectivity_plus: ^7.0.0
-  data_layer: 0.0.2
+  data_layer: ^0.0.2-rc.1
   flutter:
     sdk: flutter
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  lints: ^6.0.0
   mocktail: ^1.0.4
   very_good_analysis: ^10.0.0
 
-dependency_overrides:
-  data_layer:
-    path: ../data_layer
+# dependency_overrides:
+#   data_layer:
+#     path: ../data_layer

@@ -21,8 +21,8 @@ Add the following to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  data_layer: ^0.0.1-beta.4
-  data_layer_hive: ^0.0.1-beta.1
+  data_layer: ^0.0.2-rc.1
+  data_layer_hive: ^0.0.2-rc.1
 ```
 
 It is recommended to use `pkg:hive_ce` for its companion package, `pkg:hive_ce_generator`, which allows you to register your models like so:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.2-rc.1
+
+- Adds retries for connectivity or server issues
+- Updates DataContract methods to use `Operation` instances for improved
+  serialization, toward the end of saving retries
+
 ## 0.0.1-beta.9
 
 - Restores `ReadinessMixin` to original API which involves calling `markReady`
