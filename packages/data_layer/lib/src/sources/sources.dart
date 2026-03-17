@@ -13,3 +13,4 @@ export 'request_type.dart';
 export 'results.dart';
 export 'source_list.dart';
 export 'time.dart';
+export 'watchable_source.dart';

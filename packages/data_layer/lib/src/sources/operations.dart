@@ -1,3 +1,4 @@
+import 'package:crypt/crypt.dart';
 import 'package:data_layer/data_layer.dart'
     show RequestDetails, RequestDetailsConverter;
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -95,6 +96,55 @@ sealed class Operation<T> with _$Operation<T> {
     WriteListOperation<T>() ||
     DeleteOperation<T>() => false,
   };
+
+  /// The cache key for this operation. This is used to deduplicate operations
+  /// which are requesting the same data; specifically for watch operations
+  /// which can reuse the same streams if they are requesting the exact same
+  /// data.
+  String get cacheKey {
+    switch (this) {
+      case ReadOperation<T>(:final itemId, :final details):
+        return Crypt.sha256(
+          '$itemId-${details.cacheKey}',
+          rounds: 1,
+          salt: 'read-op',
+        ).toString();
+      case WriteOperation<T>(:final item, :final details):
+        return Crypt.sha256(
+          '${item.hashCode}-${details.cacheKey}',
+          rounds: 1,
+          salt: 'write-op',
+        ).toString();
+      case DeleteOperation<T>(:final itemId, :final details):
+        return Crypt.sha256(
+          '$itemId-${details.cacheKey}',
+          rounds: 1,
+          salt: 'delete-op',
+        ).toString();
+      case ReadListOperation<T>():
+        // [details.cacheKey] contains all relevant information for this
+        // operation, including pagination and filters.
+        return Crypt.sha256(
+          details.cacheKey,
+          rounds: 1,
+          salt: 'read-list-op',
+        ).toString();
+      case WriteListOperation<T>(:final items, :final details):
+        final sortedHashes = items.map((e) => e.hashCode).toList()..sort();
+        return Crypt.sha256(
+          '${sortedHashes.join('-')}-${details.cacheKey}',
+          rounds: 1,
+          salt: 'write-list-op',
+        ).toString();
+      case ReadByIdsOperation<T>(:final itemIds, :final details):
+        final sortedIds = itemIds.toList()..sort();
+        return Crypt.sha256(
+          '${sortedIds.join('-')}-${details.cacheKey}',
+          rounds: 1,
+          salt: 'read-ids-op',
+        ).toString();
+    }
+  }
 
   /// True if this operation is a write.
   bool get isWrite => !isRead;

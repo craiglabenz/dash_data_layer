@@ -60,6 +60,29 @@ class Repository<T> with ReadinessMixin<void> {
     }
   }
 
+  /// Opens a live stream for the item with the given [id].
+  Stream<T?> watch(String id, [RequestDetails? details]) async* {
+    await ready;
+    yield* sourceList
+        .watch(
+          ReadOperation<T>(
+            operationId: generateOperationId(),
+            itemId: id,
+            details: details ?? RequestDetails.read(),
+            createdAt: getTime(),
+          ),
+        )
+        .map((result) {
+          switch (result) {
+            case ReadSuccess<T>():
+              return result.itemOrRaise();
+            case ReadFailure<T>():
+              _log.info('Failed to read $T with Id $id :: $result.error');
+              return null;
+          }
+        });
+  }
+
   /// Loads all items in the given Id set. If any Ids were not fulfilled, they
   /// are included in `missingIds`.
   Future<(List<T> items, Set<String> missingIds)> getByIds(
@@ -87,6 +110,35 @@ class Repository<T> with ReadinessMixin<void> {
     }
   }
 
+  /// Opens a live stream for all items in the given Id set.
+  Stream<(List<T> items, Set<String> missingIds)> watchByIds(
+    Set<String> ids, [
+    RequestDetails? details,
+  ]) async* {
+    await ready;
+    yield* sourceList
+        .watchByIds(
+          ReadByIdsOperation<T>(
+            operationId: generateOperationId(),
+            itemIds: ids,
+            details: details ?? RequestDetails.read(),
+            createdAt: getTime(),
+          ),
+        )
+        .map((result) {
+          switch (result) {
+            case ReadListSuccess<T>():
+              final success = result.getOrRaise();
+              return (success.items.toList(), success.missingItemIds);
+            case ReadListFailure<T>():
+              _log.info(
+                'Failed to load $T with Ids $ids :: ${result.errorOrRaise()}',
+              );
+              return (<T>[], ids);
+          }
+        });
+  }
+
   /// Loads all items that match the given request [details], or the default
   /// [RequestDetails.read] object if not given.
 
@@ -105,6 +157,28 @@ class Repository<T> with ReadinessMixin<void> {
       case ReadListFailure<T>():
         return <T>[];
     }
+  }
+
+  /// Opens a live stream for all items that match the given request [details],
+  /// or the default [RequestDetails.read] object if not given.
+  Stream<List<T>> watchList({RequestDetails? details}) async* {
+    await ready;
+    yield* sourceList
+        .watchList(
+          ReadListOperation<T>(
+            operationId: generateOperationId(),
+            details: details ?? RequestDetails.read(),
+            createdAt: getTime(),
+          ),
+        )
+        .map((result) {
+          switch (result) {
+            case ReadListSuccess<T>():
+              return result.itemsOrRaise();
+            case ReadListFailure<T>():
+              return <T>[];
+          }
+        });
   }
 
   /// Persists the given item and returns the saved value if the write was

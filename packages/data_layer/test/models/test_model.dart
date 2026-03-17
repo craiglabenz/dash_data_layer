@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:data_layer/data_layer.dart';
 import 'package:equatable/equatable.dart';
@@ -120,6 +121,22 @@ class FakeSourceList<T> extends SourceList<T> {
   ) => Future.value(
     WriteListSuccess<T>([objs.first], details: operation.details),
   );
+
+  final watchController = StreamController<ReadResult<T>>.broadcast();
+  final watchListController = StreamController<ReadListResult<T>>.broadcast();
+  final watchByIdsController = StreamController<ReadListResult<T>>.broadcast();
+
+  @override
+  Stream<ReadResult<T>> watch(ReadOperation<T> operation) =>
+      watchController.stream;
+
+  @override
+  Stream<ReadListResult<T>> watchList(ReadListOperation<T> operation) =>
+      watchListController.stream;
+
+  @override
+  Stream<ReadListResult<T>> watchByIds(ReadByIdsOperation<T> operation) =>
+      watchByIdsController.stream;
 }
 
 /// Checks whether a model's given field name equals the given value.
