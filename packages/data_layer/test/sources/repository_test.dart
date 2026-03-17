@@ -59,5 +59,55 @@ void main() {
       },
       timeout: const Timeout(Duration(seconds: 1)),
     );
+
+    test('including watch', () async {
+      final stream = repo.watch('also does not matter', emptyDetails);
+      final futureFirst = stream.first;
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      sl.watchController.add(
+        ReadResult<TestModel>.success(obj, details: emptyDetails),
+      );
+      expect(await futureFirst, isA<TestModel>());
+    }, timeout: const Timeout(Duration(seconds: 1)));
+
+    test('including watchList', () async {
+      final stream = repo.watchList(details: emptyDetails);
+      final futureFirst = stream.first;
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      sl.watchListController.add(
+        ReadListResult<TestModel>.fromList(
+              [obj],
+              emptyDetails,
+              const {},
+              TestModel.bindings.getId,
+            )
+            as ReadListSuccess<TestModel>,
+      );
+      expect(await futureFirst, isA<List<TestModel>>());
+    }, timeout: const Timeout(Duration(seconds: 1)));
+
+    test('including watchByIds', () async {
+      final stream = repo.watchByIds(
+        {'also does not matter'},
+        emptyDetails,
+      );
+      final futureFirst = stream.first;
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      sl.watchByIdsController.add(
+        ReadListResult<TestModel>.fromList(
+              [obj],
+              emptyDetails,
+              const {},
+              TestModel.bindings.getId,
+            )
+            as ReadListSuccess<TestModel>,
+      );
+      final (items, missing) = await futureFirst;
+      expect(items, isA<List<TestModel>>());
+      expect(missing, isA<Set<String>>());
+    }, timeout: const Timeout(Duration(seconds: 1)));
   });
 }

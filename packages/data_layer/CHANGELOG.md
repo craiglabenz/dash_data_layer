@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3-rc.1
+
+- Adds watch functions for sources capable of live updates
+
 ## 0.0.2-rc.1
 
 - Adds retries for connectivity or server issues

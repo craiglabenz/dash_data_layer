@@ -31,6 +31,10 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     this.retryPolicy,
     DateTime Function()? getTime,
   }) : _getTime = getTime {
+    assert(
+      sources.whereType<WatchableSource<T>>().length <= 1,
+      'A SourceList may contain at most 1 WatchableSource.',
+    );
     for (final source in sources) {
       if (!source.hasBindings) {
         source.bindings = bindings;
@@ -47,6 +51,10 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       });
     }
   }
+
+  final _activeWatchStreams = <String, Stream<ReadResult<T>>>{};
+  final _activeWatchListStreams = <String, Stream<ReadListResult<T>>>{};
+  final _activeWatchByIdsStreams = <String, Stream<ReadListResult<T>>>{};
 
   /// Testing-friendly constructor for wiring things up that don't actually
   /// require a functioning [SourceList].
@@ -144,6 +152,175 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
         throw NoConnectivityException();
       }
     }
+  }
+
+  WatchableSource<T> _getWatchableSource(RequestDetails details) {
+    final matchedSources = getSources(
+      requestType: details.requestType,
+      reversed: true,
+    ).where((s) => s.matched).map((s) => s.source).toList();
+
+    for (final source in matchedSources) {
+      if (source is WatchableSource<T>) {
+        return source;
+      }
+    }
+
+    throw StateError(
+      'Cannot call watch methods on a SourceList when none of its valid '
+      'sources are a WatchableSource.',
+    );
+  }
+
+  List<LocalSource<T>> _localSourcesToCacheTo([Source<T>? originSource]) {
+    return getSources(requestType: .local)
+        .where(
+          (s) =>
+              s.matched &&
+              s.source is LocalSource<T> &&
+              s.source != originSource,
+        )
+        .map((s) => s.source as LocalSource<T>)
+        .toList();
+  }
+
+  /// Opens a live stream which will yield the current matching model
+  /// periodically via a [ReadResult].
+  Stream<ReadResult<T>> watch(ReadOperation<T> operation) {
+    if (_activeWatchStreams.containsKey(operation.cacheKey)) {
+      return _activeWatchStreams[operation.cacheKey]!;
+    }
+
+    final watchableSource = _getWatchableSource(operation.details);
+    final localSources = _localSourcesToCacheTo(watchableSource);
+
+    StreamSubscription<ReadResult<T>>? sub;
+    late final StreamController<ReadResult<T>> controller;
+
+    controller = StreamController<ReadResult<T>>.broadcast(
+      onListen: () {
+        sub = watchableSource.watch(operation).listen(
+          (result) async {
+            if (result is ReadSuccess<T> && result.item != null) {
+              final writeOp = WriteOperation<T>(
+                operationId: operation.operationId,
+                details: operation.details,
+                item: result.item as T,
+                createdAt: getTime(),
+              );
+              await _cacheItem(localSources, writeOp);
+            }
+            controller.add(result);
+          },
+          onError: controller.addError,
+        );
+      },
+      onCancel: () {
+        sub?.cancel().ignore();
+        _activeWatchStreams.remove(operation.cacheKey);
+      },
+    );
+
+    final stream = controller.stream;
+    _activeWatchStreams[operation.cacheKey] = stream;
+    return stream;
+  }
+
+  /// Opens a live stream which will yield the current matching models
+  /// periodically via a [ReadListResult].
+  Stream<ReadListResult<T>> watchList(ReadListOperation<T> operation) {
+    if (_activeWatchListStreams.containsKey(operation.cacheKey)) {
+      return _activeWatchListStreams[operation.cacheKey]!;
+    }
+
+    final watchableSource = _getWatchableSource(operation.details);
+    final localSources = _localSourcesToCacheTo(watchableSource);
+
+    StreamSubscription<ReadListResult<T>>? sub;
+    late final StreamController<ReadListResult<T>> controller;
+
+    controller = StreamController<ReadListResult<T>>.broadcast(
+      onListen: () {
+        sub = watchableSource.watchList(operation).listen(
+          (result) async {
+            if (result is ReadListSuccess<T>) {
+              final writeOp = WriteListOperation<T>(
+                operationId: operation.operationId,
+                details: operation.details,
+                items: result.items,
+                createdAt: getTime(),
+              );
+              if (result.items.isNotEmpty) {
+                await _cacheItems(localSources, writeOp);
+              } else {
+                await clearForRequest(operation.details);
+              }
+            }
+            controller.add(result);
+          },
+          onError: controller.addError,
+        );
+      },
+      onCancel: () {
+        sub?.cancel().ignore();
+        _activeWatchListStreams.remove(operation.cacheKey);
+      },
+    );
+
+    final stream = controller.stream;
+    _activeWatchListStreams[operation.cacheKey] = stream;
+    return stream;
+  }
+
+  /// Opens a live stream which will yield the current matching models
+  /// periodically via a [ReadListResult].
+  Stream<ReadListResult<T>> watchByIds(ReadByIdsOperation<T> operation) {
+    if (_activeWatchByIdsStreams.containsKey(operation.cacheKey)) {
+      return _activeWatchByIdsStreams[operation.cacheKey]!;
+    }
+
+    final watchableSource = _getWatchableSource(operation.details);
+    final localSources = _localSourcesToCacheTo(watchableSource);
+
+    StreamSubscription<ReadListResult<T>>? sub;
+    late final StreamController<ReadListResult<T>> controller;
+
+    controller = StreamController<ReadListResult<T>>.broadcast(
+      onListen: () {
+        sub = watchableSource.watchByIds(operation).listen(
+          (result) async {
+            if (result is ReadListSuccess<T>) {
+              for (final localSource in localSources) {
+                for (final item in result.items) {
+                  await localSource.setItem(
+                    WriteOperation<T>(
+                      operationId: operation.operationId,
+                      item: item,
+                      details: operation.details,
+                      createdAt: getTime(),
+                    ),
+                  );
+                }
+                if (!operation.details.isLocal &&
+                    result.missingItemIds.isNotEmpty) {
+                  await localSource.deleteIds(result.missingItemIds.toSet());
+                }
+              }
+            }
+            controller.add(result);
+          },
+          onError: controller.addError,
+        );
+      },
+      onCancel: () {
+        sub?.cancel().ignore();
+        _activeWatchByIdsStreams.remove(operation.cacheKey);
+      },
+    );
+
+    final stream = controller.stream;
+    _activeWatchByIdsStreams[operation.cacheKey] = stream;
+    return stream;
   }
 
   /// Invokes a callback function with retry logic.
