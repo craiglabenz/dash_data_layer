@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.4
+
+- Fixes bug where subsequent calls to `setItems` did not clear out any items which were no longer present in the incoming list.
+
 ## 0.0.3-rc.1
 
 - Adds watch functions for sources capable of live updates

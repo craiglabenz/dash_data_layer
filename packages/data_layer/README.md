@@ -2,7 +2,7 @@
 
 # Data Layer
 
-Pure Dart package for isolating data layer abstractions from the rest of your app.
+Data Layer is a pure Dart package for declarative data fetching and caching.
 
 # Motivation
 
@@ -14,7 +14,7 @@ Further, naive approaches like always loading data from the server every time yo
 
 # Architecture
 
-Everything in `pkg:data_layer` resolves around satisfying the `DataContract` interface. This interface has 6 primary methods:
+Everything in `pkg:data_layer` resolves around satisfying the `DataContract` interface. This interface has the following primary methods:
 
 * `getById` - Retrieves a single item by its Id. Does not support filters or pagination.
 * `getByIds` - Retrieves a list of items by their Ids. Does not support filters or pagination.
@@ -22,6 +22,12 @@ Everything in `pkg:data_layer` resolves around satisfying the `DataContract` int
 * `setItem` - Persists a single item.
 * `setItems` - Persists a list of items.
 * `deleteItem` - Deletes a single item.
+
+Additionally, three streaming equivalents of the read methods exist:
+
+* `watch` - Streams updates to a single item by its Id.
+* `watchList` - Streams updates to the set of items which satisfy the given request.
+* `watchByIds` - Streams updates to a list of items by their Ids.
 
 The primary class from `pkg:data_layer` which the rest of your app will encounter is `Repository`, which defaults to defining handlers for all of the above methods, but may decide to define only a subset if appropriate for a given use case. (For example, a read-only data endpoint may throw `UnimplementedError` exceptions for `setItem`, `setItems`, and `deleteItem`.)
 
@@ -45,6 +51,7 @@ Understanding the `SourceList` is key to understanding `pkg:data_layer`. See the
 - [Loading data](#loading-data)
 - [Filtering data](#filtering-data)
 - [Pagination](#pagination)
+- [Streaming data](#streaming-data)
 - [Managing cached data](#managing-cached-data)
 - [Retrying operations](#retrying-operations)
 - [Creating a Local Source](#creating-a-local-source)
@@ -337,12 +344,30 @@ final newUser = await UserRepository.setItem(User(isActive: true));
 /// Thus, the `SourceList` powering this repository will send the following
 /// request to the server, which will return active users as per your business
 /// logic rules. Of course, consider including pagination to limit the number of
-///records returned.
+/// records returned.
 ///
 /// This represents why caching is request-based and why filters are never
 /// evaluated locally.
 final activeUsers = await userRepository.getItems(RequestDetails(filter: ActiveUsersFilter()));
 ```
+
+The fact that filters are never applied locally has implications for fast-paced applications with highly time-sensitive data. In such cases, it is recommended to use `RequestType.refresh` to force a `SourceList` to skip reading any local sources and instead go straight back to your remote sources.
+
+Consider the following scenario:
+
+```dart
+final messages = await messageRepository.getItems(
+  RequestDetails(filters: MessagesSentInLast(Duration(seconds: 1))),
+);
+
+// At this point, 1-second old messages are all cached locally. However, more than a second later, none of those messages should still belong to that dataset. However, the following request would still yield all of the stale "1-second old" messages:
+
+final staleMessages = await messageRepository.getItems(
+  RequestDetails(filters: MessagesSentInLast(Duration(seconds: 1))),
+);
+```
+
+Thus, for highly time sensitive data, is probably bet to use `RequestType.refresh` to force a `SourceList` to skip reading any local sources and instead go straight back to your remote sources.
 
 ## Pagination
 
@@ -359,6 +384,13 @@ final users = await userRepository.getItems(details);
 It is the job of any remote `Source` to apply this pagination to its request in `getItems`. For example, the `ApiSource` calls its pagination `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server will apply the pagination to any database queries it executes.
 
 Filters and pagination can be used together.
+
+## Streaming data
+
+To stream data, you need to implement the 3 streaming methods on `WatchableSource`. Naturally, this requires establishing a contract with your backend for live updates. Serverpod and Supabase provide great websocket support, of course Firebase is known for its real-time capabilities; but either way, it is the job of a `WatchableSource` author to produce a stream that emits new objects whenever data changes.
+
+For an experimental `FirestoreSource`, see the `data_layer_firestore` package. (Work in progress.)
+
 
 ## Managing cached data
 
@@ -494,6 +526,49 @@ By default, cached data does not expire. However, any time you write data to a `
 Your state management will not automatically be made aware of expired data when its `ttl` elapses, as `Repository` classes and their inner `SourceList` objects do not watch for these implicit timers to expire and broadcast any signals. In a scenario where you have reduced tolerance for stale data, you should use `RequestType.refresh` to force a `SourceList` to skip reading any local sources and instead go straight back to your remote sources.
 
 If you know you always want to cache data for a limited period if time, you can supply a `ttl` value to the `LocalSource` itself, instead of each `RequestDetails` object. Note that a `ttl` value attached to a `RequestDetails` object will override any `ttl` value attached to the `LocalSource`, only for that cache write.
+
+### Cleaning up disappearing data
+
+Consider the following situation. First, you fetch a list of records from the server and cache them locally.
+
+```dart
+// Reads data from the server (assuming no cache hits), loading [User1] and [User2]
+final users = await userRepository.getItems(
+  RequestDetails(filters: MyFilter()),
+);
+/// Users == [User1, User2]
+```
+
+At this point, your `UserRepository` will have cached `User1` and `User2` to any local sources. However, later, imagine you force a cache miss and send the same request to the server.
+
+```dart
+/// Forces a local cache miss and repeats the same request from before; this time returning only [User2]
+final users = await userRepository.getItems(
+  RequestDetails(requestType: .refresh, filters: MyFilter()),
+);
+/// Users == [User2]
+```
+
+However, this time, only `User2` was returned. What would you expect from the following call to `getItems`?
+
+```dart
+/// My default, all sources attempt to satisfy requests from local sources first; and since data definitely exists locally for `MyFilter()`, no request will be sent to the server.
+final users = await userRepository.getItems(
+  RequestDetails(filters: MyFilter()),
+);
+```
+
+Should `users` contain both [User1] and [User2], or just [User2]? `pkg:data_layer` makes the opinionated choice that only [User2] will be returned, because the last time this request was made, the server communicated that now only [User2] lives within that dataset.
+
+[User1] will have been removed from the cache associated with `MyFilter()`. Further, if [User1] was not associated with any other requests at all, it will be deleted locally; thereby removing it from the following request, as well:
+
+```dart
+// [.allLocal] reads all locally available data, regardless of request, and makes no request to the server.
+final users = await userRepository.getItems(
+  RequestDetails(requestType: .allLocal, filters: MyFilter()),
+);
+/// Users only contains [User2]
+```
 
 ### Clearing cached data
 
