@@ -44,7 +44,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       _retrySub = retryPolicy!.onRetryOperation().listen(_retryOperation);
     }
     if (connectivityService != null && retryPolicy != null) {
-      _connectivitySub = connectivityService!.listen((bool status) {
+      _connectivitySub = connectivityService!.listen((status) {
         if (status) {
           unawaited(retryPolicy!.onReconnected().then(_onReconnected));
         }
@@ -52,14 +52,14 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     }
   }
 
-  final _activeWatchStreams = <String, Stream<ReadResult<T>>>{};
-  final _activeWatchListStreams = <String, Stream<ReadListResult<T>>>{};
-  final _activeWatchByIdsStreams = <String, Stream<ReadListResult<T>>>{};
-
   /// Testing-friendly constructor for wiring things up that don't actually
   /// require a functioning [SourceList].
   factory SourceList.empty(Bindings<T> bindings) =>
       SourceList(sources: [], bindings: bindings);
+
+  final _activeWatchStreams = <String, Stream<ReadResult<T>>>{};
+  final _activeWatchListStreams = <String, Stream<ReadListResult<T>>>{};
+  final _activeWatchByIdsStreams = <String, Stream<ReadListResult<T>>>{};
 
   StreamSubscription<Operation<T>>? _retrySub;
   StreamSubscription<bool>? _connectivitySub;

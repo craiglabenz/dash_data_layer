@@ -427,7 +427,7 @@ void main() {
 
         expect(lastResult1, isNotNull);
         expect(
-          (lastResult1 as ReadListSuccess).items.first.msg,
+          (lastResult1 as ReadListSuccess<TestModel>?)!.items.first.msg,
           'stream1 payload',
         );
 
@@ -531,7 +531,8 @@ void main() {
         gro('missing-id', RequestDetails()),
       );
       // It shouldn't be deleted because the request was essentially 'local',
-      // so we don't treat the missing items as authoritative deletions from remote.
+      // so we don't treat the missing items as authoritative deletions from
+      // remote.
       expect((subsequentMissing as ReadSuccess<TestModel>).item, isNotNull);
 
       await sub.cancel();

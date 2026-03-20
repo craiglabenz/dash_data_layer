@@ -49,7 +49,7 @@ class InMemoryPersistence<T> extends SourceCache<T> {
     _log.finest('Getting $ids');
     return Map.fromEntries(
       _items.keys
-          .where((String key) => ids.contains(key))
+          .where((key) => ids.contains(key))
           .map((key) => MapEntry(key, _items[key] as T)),
     );
   }

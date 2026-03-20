@@ -47,9 +47,9 @@ class TestModel {
     fromJson: TestModel.fromJson,
     getDetailUrl: (id) => ApiUrl(path: 'test/$id'),
     getListUrl: () => const ApiUrl(path: 'test/'),
-    toJson: (TestModel obj) => obj.toJson(),
-    getId: (TestModel obj) => obj.id,
-    save: (TestModel obj) => obj.copyWith(id: 'abc'),
+    toJson: (obj) => obj.toJson(),
+    getId: (obj) => obj.id,
+    save: (obj) => obj.copyWith(id: 'abc'),
   );
 }
 

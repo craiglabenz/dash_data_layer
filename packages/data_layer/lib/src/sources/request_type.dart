@@ -21,11 +21,11 @@ enum RequestType {
   /// Checks whether a given [SourceType] matches this [RequestType].
   bool includes(SourceType sourceType) {
     return sourceType.map<bool>(
-      local: (SourceType sourceType) =>
+      local: (sourceType) =>
           this == RequestType.local ||
           this == RequestType.allLocal ||
           this == RequestType.global,
-      remote: (SourceType sourceType) =>
+      remote: (sourceType) =>
           this == RequestType.refresh || this == RequestType.global,
     );
   }

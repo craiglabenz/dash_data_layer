@@ -46,7 +46,7 @@ void main() {
         // Force a delay so that connectivity initialization is fully complete
         await Future.delayed(const Duration(milliseconds: 10), () {});
 
-        service.listen((bool newConnectedValue) {
+        service.listen((newConnectedValue) {
           isConnected = newConnectedValue;
           completer.complete();
         });
@@ -75,7 +75,7 @@ void main() {
 
       bool? nextEmission;
       final completer = Completer<void>();
-      service.listen((bool newConnectedValue) {
+      service.listen((newConnectedValue) {
         nextEmission = newConnectedValue;
         if (!completer.isCompleted) {
           completer.complete();
@@ -98,7 +98,7 @@ void main() {
 
       bool? nextEmission;
       final completer = Completer<void>();
-      service.listen((bool newConnectedValue) {
+      service.listen((newConnectedValue) {
         nextEmission = newConnectedValue;
         if (!completer.isCompleted) {
           completer.complete();
