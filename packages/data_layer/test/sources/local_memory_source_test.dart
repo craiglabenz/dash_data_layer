@@ -64,14 +64,14 @@ void main() {
     expect(result.getOrRaise().item.id, 'new');
   });
 
-  group('LocalMemorySource.setItem should', () {
+  group('LocalMemorySource.setItems should', () {
     test('set items', () async {
       const item2 = TestModel(id: 'item 2');
       await source.setItems(gwlo([item, item2], details));
       await fullyContains(source, [item, item2], requests: [details]);
 
       await source.setItems(gwlo([item2, item3], details));
-      await fullyContains(source, [item], requests: []);
+      await notInCache(source, [item], containsAtAll: false);
       await fullyContains(source, [item2, item3], requests: [details]);
     });
 
@@ -80,10 +80,56 @@ void main() {
       await fullyContains(source, [item, item2], requests: [paginationDetails]);
 
       await source.setItems(gwlo([item2, item3], paginationDetails));
-      await notInCache(source, [item], requests: [details, paginationDetails]);
+      await notInCache(
+        source,
+        [item],
+        requests: [details, paginationDetails],
+        containsAtAll: false,
+      );
       await fullyContains(source, [item2], requests: [paginationDetails]);
       await fullyContains(source, [item3], requests: [paginationDetails]);
     });
+
+    test('not delete items belonging to a different request', () async {
+      await source.setItems(gwlo([item, item2], details));
+      await source.setItems(gwlo([item, item2], abcDetails));
+      await fullyContains(
+        source,
+        [item, item2],
+        requests: [details, abcDetails],
+      );
+      await source.setItems(gwlo([item2, item3], abcDetails));
+
+      // [item] is still in [details]
+      await fullyContains(source, [item, item2], requests: [details]);
+      // [item] is no longer in [abcDetails]
+      await notInCache(source, [item], requests: [abcDetails]);
+      await fullyContains(source, [item2, item3], requests: [abcDetails]);
+    });
+
+    test(
+      'not delete items belonging to a different paginated request',
+      () async {
+        await source.setItems(gwlo([item, item2], paginationDetails));
+        await source.setItems(gwlo([item, item2], abcDetails));
+        await fullyContains(
+          source,
+          [item, item2],
+          requests: [paginationDetails, abcDetails],
+        );
+        await source.setItems(gwlo([item2, item3], abcDetails));
+
+        // [item] is still in [details]
+        await fullyContains(
+          source,
+          [item, item2],
+          requests: [paginationDetails],
+        );
+        // [item] is no longer in [abcDetails]
+        await notInCache(source, [item], requests: [abcDetails]);
+        await fullyContains(source, [item2, item3], requests: [abcDetails]);
+      },
+    );
 
     test('set items with pagination then without', () async {
       await source.setItems(gwlo([item, item2], paginationDetails));
@@ -132,6 +178,57 @@ void main() {
       await fullyContains(source, [item2], requests: [details, abcDetails]);
       await fullyContains(source, [item3], requests: [abcDetails]);
     });
+
+    test('remove locally existing items missing from new batch', () async {
+      await source.setItems(gwlo([item, item2], details));
+      await source.setItems(gwlo([item, item2], abcDetails));
+      // details: [item, item2]
+      // abcDetails: [item, item2]
+      await fullyContains(
+        source,
+        [item, item2],
+        requests: [details, abcDetails],
+      );
+
+      // Removes [item] from [details], but not from [abcDetails]
+      await source.setItems(gwlo([item2, item3], details));
+
+      // details: [item2, item3]
+      // abcDetails: [item, item2]
+      await notInCache(source, [item], requests: [details]);
+      await fullyContains(
+        source,
+        [item2],
+        requests: [details, abcDetails],
+      );
+      await fullyContains(source, [item3], requests: [details]);
+    });
+
+    test(
+      'completely remove items from global cache if no longer in any requests',
+      () async {
+        await source.setItems(gwlo([item, item2], details));
+        await source.setItems(gwlo([item, item2], abcDetails));
+
+        await source.setItems(gwlo([item2], details));
+
+        // Now [details] has lost reference to [item], but [item] is still
+        // cached because of its membership in [abcDetails]
+
+        await notInCache(source, [item], requests: [details]);
+        await fullyContains(source, [item], requests: [abcDetails]);
+
+        // Now [item]'s last set membership, [abcDetails], has also dropped it
+        await source.setItems(gwlo([item2], abcDetails));
+
+        await notInCache(
+          source,
+          [item],
+          requests: [details, abcDetails],
+          containsAtAll: false,
+        );
+      },
+    );
   });
 
   group('LocalMemorySource.getById should', () {
@@ -373,6 +470,7 @@ Future<void> fullyContains(
     expect(
       (await mem.getById(gro(item.id!, details))).getOrRaise().item,
       equals(item),
+      reason: 'Item $item should be in cache when accessed by Id',
     );
 
     if (requests.isEmpty) {
@@ -405,9 +503,17 @@ Future<void> notInCache(
       gro(item.id!, details),
     )).getOrRaise().item;
     if (containsAtAll) {
-      expect(maybeItem, isNotNull);
+      expect(
+        maybeItem,
+        isNotNull,
+        reason: 'Item $item expected to be in cache',
+      );
     } else {
-      expect(maybeItem, isNull);
+      expect(
+        maybeItem,
+        isNull,
+        reason: 'Item $item expected to be completely deleted',
+      );
     }
 
     final requestsToEvaluate = requests.isNotEmpty ? requests : [details];
@@ -416,6 +522,7 @@ Future<void> notInCache(
       expect(
         (await mem.getItems(grlo(request))).getOrRaise().items,
         isNot(contains(item)),
+        reason: 'Request $request not expected to contain $item',
       );
     }
   }

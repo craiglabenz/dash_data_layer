@@ -126,6 +126,17 @@ void main() {
           item2.id!,
         }),
       ).thenAnswer((_) async {});
+      when(
+        () => mockRequestCache.read(details.cacheKey),
+      ).thenAnswer((_) async => <String>{});
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer(
+        (_) async => {
+          details.cacheKey: {item.id!, item2.id!},
+        },
+      );
+
       await source.setItems(gwlo([item, item2], details));
       verify(() => mockItemsCache.multiWrite(items1and2ByIds)).called(1);
 
@@ -163,10 +174,21 @@ void main() {
           item2.id!,
         }),
       ).thenAnswer((_) async {});
+      when(
+        () => mockRequestCache.read(paginationDetails.cacheKey),
+      ).thenAnswer((_) async => <String>{});
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer(
+        (_) async => {
+          details.cacheKey: {item.id!, item2.id!},
+        },
+      );
+
       await source.setItems(gwlo([item, item2], paginationDetails));
     });
 
-    test('set items with set name', () async {
+    test('set items with filters', () async {
       when(
         () => mockItemsCache.multiWrite(items2and3ByIds),
       ).thenAnswer((_) async {});
@@ -176,8 +198,33 @@ void main() {
           item3.id!,
         }),
       ).thenAnswer((_) async {});
+      when(
+        () => mockRequestCache.read(abcDetails.cacheKey),
+      ).thenAnswer((_) async => <String>{});
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer(
+        (_) async => {
+          abcDetails.cacheKey: {item2.id!, item3.id!},
+        },
+      );
+
       await source.setItems(gwlo([item2, item3], abcDetails));
     });
+
+    // test('remove existing items not in new batch', () async {
+    //   when(
+    //     () => mockItemsCache.multiWrite(allItemsByIds),
+    //   ).thenAnswer((_) async {});
+    //   when(
+    //     () => mockRequestCache.write(abcDetails.cacheKey, <String>{
+    //       item.id!,
+    //       item2.id!,
+    //       item3.id!,
+    //     }),
+    //   ).thenAnswer((_) async {});
+    //   await source.setItems(gwlo([item2, item3], abcDetails));
+    // });
   });
 
   group('LocalMemorySource.getById should', () {
@@ -493,6 +540,41 @@ void main() {
           paginationDetails.noPaginationCacheKey,
         ),
       );
+    });
+  });
+
+  group('LocalSource.notReferencedByAnyRequests should', () {
+    test(
+      'return an empty set when all keys are referenced by a request',
+      () async {
+        when(
+          () => mockRequestCache.readAll(),
+        ).thenAnswer(
+          (_) async => <CacheKey, Set<String>>{
+            details.cacheKey: {item.id!, item2.id!},
+            abcDetails.cacheKey: {item2.id!, item3.id!},
+          },
+        );
+        final result = await source.notReferencedByAnyRequests(
+          <String>{item.id!, item2.id!, item3.id!},
+        );
+        expect(result, <String>{});
+      },
+    );
+
+    test('return keys not referenced by any requests', () async {
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer(
+        (_) async => <CacheKey, Set<String>>{
+          details.cacheKey: {item.id!, item2.id!},
+          abcDetails.cacheKey: {item2.id!},
+        },
+      );
+      final result = await source.notReferencedByAnyRequests(
+        <String>{item.id!, item2.id!, item3.id!},
+      );
+      expect(result, <String>{item3.id!});
     });
   });
 }

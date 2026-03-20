@@ -233,13 +233,13 @@ void main() {
       await Future<void>.microtask(() {});
 
       watchableSource.watchController.add(
-        ReadResult<TestModel>.failure(FailureReason.serverError, 'foo error'),
+        const ReadResult<TestModel>.failure(.serverError, 'foo error'),
       );
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
       expect(lastResult, isA<ReadFailure<TestModel>>());
       expect(
-        (lastResult as ReadFailure).message,
+        (lastResult as ReadFailure?)!.message,
         contains('foo error'),
       );
       expect(lastError, isNull);
@@ -303,6 +303,57 @@ void main() {
       final items = (subsequentRead as ReadListSuccess<TestModel>).items;
       expect(items.length, 2);
       expect(items.map((i) => i.id), containsAll(['1', '2']));
+
+      await sub.cancel();
+    });
+
+    test('remove missing values from local sources', () async {
+      final localOp = grlo(
+        RequestDetails(filter: const MsgStartsWithFilter('old')),
+      );
+      await cacheSource.setItems(
+        gwlo([
+          const TestModel(id: '1', msg: 'old_msg'),
+          const TestModel(id: '2', msg: 'old_msg_2'),
+        ], localOp.details),
+      );
+      final cacheCheck = await cacheSource.getItems(localOp);
+      expect((cacheCheck as ReadListSuccess<TestModel>).items, hasLength(2));
+
+      final op = grlo(RequestDetails(filter: const MsgStartsWithFilter('old')));
+      final stream = sourceList.watchList(op);
+      final sub = stream.listen((_) {});
+      await Future<void>.microtask(() {});
+
+      watchableSource.watchListController.add(
+        ReadListResult<TestModel>.fromList(
+              [const TestModel(id: '2', msg: 'old_msg_2')],
+              op.details,
+              const {},
+              (i) => i.id,
+            )
+            as ReadListSuccess<TestModel>,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      final subsequentRead = await cacheSource.getItems(
+        grlo(
+          RequestDetails(
+            filter: const MsgStartsWithFilter('old'),
+            requestType: .local,
+          ),
+        ),
+      );
+
+      expect(subsequentRead, isA<ReadListSuccess<TestModel>>());
+      final items = (subsequentRead as ReadListSuccess<TestModel>).items;
+      expect(items, hasLength(1));
+      expect(items.first, const TestModel(id: '2', msg: 'old_msg_2'));
+
+      final emptyRead = await cacheSource.getItems(
+        grlo(RequestDetails(requestType: RequestType.local)),
+      );
+      expect((emptyRead as ReadListSuccess<TestModel>).items, isEmpty);
 
       await sub.cancel();
     });

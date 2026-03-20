@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:data_layer/data_layer.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 
 /// Function which can assign a new Id to an unsaved item.
 typedef IdBuilder<T> = String Function(T);
@@ -50,16 +51,28 @@ class LocalSource<T> extends Source<T> {
     _requestCache.clear(),
   ]);
 
+  /// Returns the subset of [keys] that are not referenced by any requests in
+  /// the cache. This is used to detect whether keys orphaned by a specific
+  /// write are in fact globally orphaned and should be deleted, or should
+  /// merely be deleted from that specific request.
+  @visibleForTesting
+  Future<Set<String>> notReferencedByAnyRequests(Set<String> keys) async {
+    final allCachedRequests = await _requestCache.readAll();
+    final referencedKeys = <String>{};
+    allCachedRequests.values.forEach(referencedKeys.addAll);
+    return keys.difference(referencedKeys);
+  }
+
   /// Removes these Ids from storage anywhere they may exist, which is why no
   /// [RequestDetails] are needed.
   Future<void> deleteIds(Set<String> ids) async {
     _log.finest('Deleting $ids');
     await _itemsCache.multiDelete(ids);
 
-    final allcachedRequests = await _requestCache.readAll();
+    final allCachedRequests = await _requestCache.readAll();
     final deletedRequests = <CacheKey>{};
-    for (final requestCacheKey in allcachedRequests.keys) {
-      final requestCacheIds = allcachedRequests[requestCacheKey];
+    for (final requestCacheKey in allCachedRequests.keys) {
+      final requestCacheIds = allCachedRequests[requestCacheKey];
       if (requestCacheIds != null) {
         final originalLength = requestCacheIds.length;
         requestCacheIds.removeWhere((id) => ids.contains(id));
@@ -196,6 +209,8 @@ class LocalSource<T> extends Source<T> {
       return WriteListSuccess<T>(operation.items, details: operation.details);
     }
 
+    final previousIds = await _requestCache.read(operation.details.cacheKey);
+
     final itemIds = operation.items
         .map<String>((item) => bindings.getId(item)!)
         .toSet();
@@ -233,6 +248,18 @@ class LocalSource<T> extends Source<T> {
       ),
       ttl: operation.details.ttl ?? ttl,
     );
+
+    if (previousIds != null) {
+      final orphanedIds = previousIds.difference(itemIds);
+      if (orphanedIds.isNotEmpty) {
+        final globallyOrphanedIds = await notReferencedByAnyRequests(
+          orphanedIds,
+        );
+        if (globallyOrphanedIds.isNotEmpty) {
+          await _itemsCache.multiDelete(globallyOrphanedIds);
+        }
+      }
+    }
 
     return WriteListSuccess<T>(operation.items, details: operation.details);
   }
