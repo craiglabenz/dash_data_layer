@@ -14,6 +14,7 @@ class RequestDetails extends Equatable {
   /// {@macro RequestDetails}
   RequestDetails({
     this.filter,
+    this.forceInsert = false,
     this.requestType = defaultRequestType,
     this.pagination,
     this.shouldRetry = true,
@@ -46,9 +47,11 @@ class RequestDetails extends Equatable {
   factory RequestDetails.write({
     RequestType requestType = defaultRequestType,
     bool shouldRetry = true,
+    bool forceInsert = false,
     Pagination? pagination,
     Duration? ttl,
   }) => RequestDetails(
+    forceInsert: forceInsert,
     requestType: requestType,
     pagination: pagination,
     shouldRetry: shouldRetry,
@@ -60,6 +63,7 @@ class RequestDetails extends Equatable {
     filter: data['filter'] != null
         ? Filter.fromJson(data['filter']! as Json)
         : null,
+    forceInsert: data['forceInsert'] as bool? ?? false,
     pagination: data['pagination'] != null
         ? Pagination.fromJson(data['pagination']! as Json)
         : null,
@@ -74,12 +78,18 @@ class RequestDetails extends Equatable {
 
   /// Serializes this request information to send to the server.
   Json toJson() => <String, Object?>{
+    'forceInsert': forceInsert,
     'filter': filter?.toJson(),
     'pagination': pagination?.toJson(),
     'requestType': requestType.name,
     'shouldRetry': shouldRetry,
     'ttl': ttl?.inMicroseconds,
   };
+
+  /// Tells sources, especially remote sources, to insert this data even though
+  /// it may already have an Id. This can be paired with [CreationBindings]
+  /// which assign Ids on the client.
+  final bool forceInsert;
 
   /// True if this request should be retried according to a [RetryPolicy]. Note
   /// that this does not guarantee retries; it merely means the [Operation] is
@@ -111,6 +121,7 @@ class RequestDetails extends Equatable {
 
   @override
   List<Object?> get props => [
+    forceInsert,
     requestType,
     filter?.hashCode,
     pagination,
@@ -164,6 +175,7 @@ class RequestDetails extends Equatable {
   /// Equivalent [RequestDetails] but for the removal of a global or refresh
   /// [RequestType].
   RequestDetails localCopy() => RequestDetails(
+    forceInsert: forceInsert,
     requestType: .local,
     pagination: pagination,
     filter: filter,
@@ -172,8 +184,8 @@ class RequestDetails extends Equatable {
 
   @override
   String toString() =>
-      'RequestDetails(requestType: $requestType, filter: '
-      '$filter, pagination: $pagination, ttl: $ttl)';
+      'RequestDetails(requestType: $requestType, forceInsert: $forceInsert, '
+      'filter: $filter, pagination: $pagination, ttl: $ttl)';
 
   /// Asserts that this instane [isEmpty]. The lone string parameter is useful
   /// for easily seeing where this assertion was called.

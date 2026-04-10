@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.5
+
+- Adds `forceInsert` to `RequestDetails` and `Operation`.
+
 ## 0.0.4
 
 - Fixes bug where subsequent calls to `setItems` did not clear out any items which were no longer present in the incoming list.
