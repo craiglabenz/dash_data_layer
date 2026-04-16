@@ -13,7 +13,7 @@ void main() {
     final emptyDetails = RequestDetails();
     test('including getById', () async {
       expect(
-        await repo.getById('also does not matter', emptyDetails),
+        await repo.getById('also does not matter', details: emptyDetails),
         isA<TestModel>(),
       );
     }, timeout: const Timeout(Duration(seconds: 1)));
@@ -22,7 +22,7 @@ void main() {
       () async {
         final (items, missingIds) = await repo.getByIds({
           'also does not matter',
-        }, emptyDetails);
+        }, details: emptyDetails);
         expect(items, isA<List<TestModel>>());
         expect(missingIds, isA<Set<String>>());
       },
@@ -43,7 +43,7 @@ void main() {
       'including setItem',
       () async {
         expect(
-          await repo.setItem(obj, emptyDetails),
+          await repo.setItem(obj, details: emptyDetails),
           isA<TestModel>(),
         );
       },
@@ -53,7 +53,7 @@ void main() {
       'including setItems',
       () async {
         expect(
-          await repo.setItems([obj], emptyDetails),
+          await repo.setItems([obj], details: emptyDetails),
           isA<List<TestModel>>(),
         );
       },
@@ -61,7 +61,7 @@ void main() {
     );
 
     test('including watch', () async {
-      final stream = repo.watch('also does not matter', emptyDetails);
+      final stream = repo.watch('also does not matter', details: emptyDetails);
       final futureFirst = stream.first;
 
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -91,7 +91,7 @@ void main() {
     test('including watchByIds', () async {
       final stream = repo.watchByIds(
         {'also does not matter'},
-        emptyDetails,
+        details: emptyDetails,
       );
       final futureFirst = stream.first;
 
