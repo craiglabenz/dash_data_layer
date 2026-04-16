@@ -17,7 +17,7 @@ part 'operations.g.dart';
 sealed class Operation<T> with _$Operation<T> {
   const Operation._();
 
-  /// A single item read operation that failed.
+  /// A single item read operation.
   const factory Operation.getItem({
     required String operationId,
     required String itemId,
@@ -27,7 +27,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = ReadOperation;
 
-  /// A multi-item read operation that failed.
+  /// A multi-item read operation.
   const factory Operation.getItems({
     required String operationId,
     @RequestDetailsConverter() //
@@ -36,7 +36,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = ReadListOperation;
 
-  /// A multi-item read-by-ids operation that failed.
+  /// A multi-item read-by-ids operation.
   const factory Operation.getByIds({
     required String operationId,
     required Set<String> itemIds,
@@ -46,7 +46,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = ReadByIdsOperation;
 
-  /// A single item write operation that failed.
+  /// A single item write operation.
   const factory Operation.setItem({
     required String operationId,
     @RequestDetailsConverter() //
@@ -57,7 +57,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = WriteOperation;
 
-  /// A multi-item write operation that failed.
+  /// A multi-item write operation.
   const factory Operation.setItems({
     required String operationId,
     @RequestDetailsConverter() //
@@ -68,7 +68,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = WriteListOperation;
 
-  /// A single item delete operation that failed.
+  /// A single item delete operation.
   const factory Operation.delete({
     required String operationId,
     required String itemId,

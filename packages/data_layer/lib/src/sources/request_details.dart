@@ -7,8 +7,53 @@ import 'package:freezed_annotation/freezed_annotation.dart' show JsonConverter;
 typedef CacheKey = String;
 
 /// {@template RequestDetails}
-/// Container for meta-information a [Source] will use to return the desired
-/// data.
+/// Meta-information a [Source] will use to return the desired data.
+///
+/// [RequestDetails] instances are extremely central to pkg:data_layer, as local
+/// sources use their unique [cacheKey] value to decide whether they have
+/// relevant information for a given request.
+///
+/// Note that the following code represents implementation details for sources
+/// and is hidden from end developers by the simpler API found on the
+/// [Repository] class. But, it is still demonstrative.
+///
+/// ```dart
+/// final localSource = LocalMemorySource<T>();
+/// 
+/// await localSource.setItems(
+///   WriteListOperation<T>(
+///     items: [MyClass('a'), MyClass('b')],
+///     details: RequestDetails.write(
+///       filter: ActiveItemsFilter(),
+///     ),
+///   ),
+/// );
+/// 
+/// final items = await localSource.getItems(
+///   ReadByIdsOperation<T>(
+///     operationId: Uuid.v7(),
+///     details: RequestDetails.read(
+///       filter: ActiveItemsFilter(),
+///     ),
+///   ),
+/// );
+///
+/// // `items` will contain both 'a' and 'b' because the two RequestDetails
+/// // instances will produce matching cacheKeys.
+/// // `items = [MyClass('a'), MyClass('b')]`
+///
+/// final someMoreItems = localSource.getItems(
+///   ReadByIdsOperation<T>(
+///     operationId: Uuid.v7(),
+///     details: RequestDetails(),
+///   ),
+/// );
+/// 
+/// // Unless other operations have also taken place, `someMoreItems` will be
+/// // an empty list, because the `LocalSource` has never received a write
+/// // operation with a `RequestDetails` which produced the same `cacheKey` as
+/// // that which is produced by the empty `RequestDetails()` instance.
+/// ```
 /// {@endtemplate}
 class RequestDetails extends Equatable {
   /// {@macro RequestDetails}

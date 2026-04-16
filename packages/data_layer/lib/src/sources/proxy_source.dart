@@ -20,6 +20,10 @@ typedef SetItems<T> = Future<List<T>?> Function(WriteListOperation<T>);
 typedef DeleteItem<T> = Future<DeleteResult<T>> Function(DeleteOperation<T>);
 
 /// {@template ProxySource}
+/// Source whose constructor accepts a value for each operation type.
+///
+/// This is a build-a-source model to adapt an arbitrary data source to the
+/// pkg:data_layer system.
 /// {@endtemplate}
 class ProxySource<T> extends Source<T> {
   /// {@macro ProxySource}

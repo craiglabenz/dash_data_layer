@@ -619,7 +619,9 @@ A `LocalSource` stores data on the device. The inner design of a `LocalSource` o
 
 `LocalSource` objects divide their persistence into three components: `itemsCache`, `requestCache`, and `paginatedRequestCache`. The `itemsCache` is responsible for storing the actual data, while the `requestCache` is responsible for storing metadata about the requests that were made. The `paginatedRequestCache` is responsible for storing metadata about the paginated requests that were made.
 
-Additionally, each of these cache objects is itself a layered caching mechanism to invisibly honor the `ttl` (time to live) values that you specify when writing data to the cache without requiring new `LocalSource` implementations you write to repeat this same logic.
+Additionally, two of these three cache objects are themselves a layered caching mechanism to invisibly honor the `ttl` (time to live) values that you specify when writing data. This prevents new `LocalSource` implementations from having to reimplement this same logic.
+
+> Note: Avoiding re-implementation of `ttl` logic is why the `LocalSource`'s inner design is so abstract.
 
 The package comes with `LocalMemorySource` for in-memory caching:
 

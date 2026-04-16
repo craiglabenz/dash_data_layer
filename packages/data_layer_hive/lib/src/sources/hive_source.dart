@@ -47,9 +47,6 @@ class HiveSource<T> extends LocalSource<T> {
           hive: hive,
         ),
       ),
-      // PaginatedRequestCache does not need an [ExpiringCache] wrapper because
-      // pages expire individually, which is all stored in the [requestCache]
-      // property.
       paginatedRequestCache: HiveCache<Set<String>>(
         '${bindings.getListUrl().path}_paginated_requests',
         hiveInit,
