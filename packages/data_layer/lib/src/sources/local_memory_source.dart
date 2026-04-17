@@ -30,6 +30,26 @@ class LocalMemorySource<T> extends LocalSource<T> {
        );
 }
 
+/// A [LocalMemorySource] which masquerades as a [SourceType.remote] source.
+///
+/// This source type is not suitable for anything other than tests or API stubs.
+/// To use this, insert it at the back of a [SourceList]'s list of sources and
+/// script the API behavior you want by first writing data. The [SourceList]
+/// will then be none the wiser when it asks this class for data and returns
+/// what you just wrote.
+class RemoteMemorySource<T> extends LocalMemorySource<T> {
+  /// Instantiates a [RemoteMemorySource].
+  RemoteMemorySource({
+    required super.bindings,
+    super.now,
+    super.ttl,
+  });
+
+  /// This lie is the whole point of this class.
+  @override
+  SourceType get sourceType => .remote;
+}
+
 /// {@template InMemoryPersistence}
 /// In-memory storage for a [LocalSource]. This is a glorified [Map].
 /// {@endtemplate}
