@@ -124,9 +124,11 @@ final userRepository = UserRepository(
     bindings: userBindings,
     sources: [
       LocalSource<User>(bindings: userBindings),
-      ApiSource<User>(
+      RestSource<User>(
         bindings: userBindings,
-        restClient: restClient,
+        getListUrl: () => ApiUrl(path: '/users'),
+        getDetailUrl: (id) => ApiUrl(path: '/users/$id'),
+        restApi: restClient,
       ),
     ],
   ),
@@ -144,9 +146,11 @@ final userRepository = UserRepository(
     retryPolicy: DefaultRetryPolicy(...),
     sources: [
       LocalSource<User>(bindings: userBindings),
-      ApiSource<User>(
+      RestSource<User>(
         bindings: userBindings,
-        restClient: restClient,
+        getListUrl: () => ApiUrl(path: '/users'),
+        getDetailUrl: (id) => ApiUrl(path: '/users/$id'),
+        restApi: restClient,
       ),
     ],
   ),
@@ -179,7 +183,7 @@ SourceList(
     sources: [
       InMemoryLocalSource(),
       HiveSource(),
-      ApiSource(),
+      RestSource(),
     ],
   )
 ```
@@ -196,7 +200,7 @@ SourceList(
       // This Source will have records cached to it, but all reads will be satisfied
       // by the HiveSource first, so that cache will be pure bloat.
       InMemoryLocalSource(),
-      ApiSource(),
+      RestSource(),
     ],
   )
 ```
@@ -269,8 +273,6 @@ final userBindings = Bindings<User>(
   fromJson: User.fromJson,
   toJson: (user) => user.toJson(),
   getId: (user) => user.id,
-  getDetailUrl: (id) => ApiUrl(path: '/users/$id'),
-  getListUrl: () => ApiUrl(path: '/users'),
 );
 ```
 
@@ -322,7 +324,7 @@ final details = RequestDetails(
 final users = await userRepository.getItems(details);
 ```
 
-It is the job of any remote `Source` to apply this filter to its request in `getItems`. For example, the `ApiSource` calls its filters `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server will apply the filter to any database queries it executes.
+It is the job of any remote `Source` to apply this filter to its request in `getItems`. For example, the `RestSource` calls its filters `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server will apply the filter to any database queries it executes.
 
 Filters and pagination can be used together.
 
@@ -371,7 +373,7 @@ Thus, for highly time sensitive data, is probably bet to use `RequestType.refres
 
 ## Pagination
 
-Similar to filtering, pagination is handled by the `ApiSource` and is applied to the request in `getItems`.
+Similar to filtering, pagination is handled by the `RestSource` and is applied to the request in `getItems`.
 
 ```dart
 final details = RequestDetails(
@@ -381,7 +383,7 @@ final details = RequestDetails(
 final users = await userRepository.getItems(details);
 ```
 
-It is the job of any remote `Source` to apply this pagination to its request in `getItems`. For example, the `ApiSource` calls its pagination `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server will apply the pagination to any database queries it executes.
+It is the job of any remote `Source` to apply this pagination to its request in `getItems`. For example, the `RestSource` calls its pagination `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server will apply the pagination to any database queries it executes.
 
 Filters and pagination can be used together.
 

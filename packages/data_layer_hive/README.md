@@ -43,10 +43,12 @@ SourceList(
   ...
   sources: [
     HiveSource(
+      bindings: userBindings,
+      boxName: 'users_box',
       // You probably want to call this code elsewhere and capture its Future
       // for reuse across multiple `HiveSource` instances.
       hiveInit: Hive.initFlutter().then((_) => Hive.registerAdapters()),
-    ApiSource(...),
+    RestSource(...),
   ],
 )
 

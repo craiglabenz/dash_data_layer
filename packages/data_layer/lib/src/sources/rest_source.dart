@@ -3,24 +3,40 @@ import 'dart:async';
 import 'package:data_layer/data_layer.dart';
 import 'package:logging/logging.dart';
 
-/// {@template ApiSource}
+/// {@template RestSource}
 /// Subtype of [Source] which knows how to make network requests to load data.
 /// {@endtemplate}
-class ApiSource<T> extends Source<T> {
-  /// {@macro ApiSource}
-  ApiSource({
+class RestSource<T> extends Source<T> {
+  /// {@macro RestSource}
+  RestSource({
     required RestApi restApi,
+    required this.getListUrl,
+    required this.getDetailUrl,
+    ApiUrl Function()? getCreateUrl,
     this.logLevel = Level.OFF,
     this.resultsKey = 'results',
     super.bindings,
     ITimer? timer,
   }) : api = restApi,
+       _getCreateUrl = getCreateUrl,
        idsCurrentlyBeingFetched = <String>{},
        loadedItems = {},
        timer = timer ?? RealTimer(),
        queuedIds = <String>{};
 
-  final _log = Logger('ApiSource<$T>');
+  final _log = Logger('RestSource<$T>');
+
+  /// Builder for list [ApiUrl] instances for this data type.
+  final ApiUrl Function() getListUrl;
+
+  /// Builder for detail [ApiUrl] instances for this data type.
+  final ApiUrl Function(String id) getDetailUrl;
+
+  final ApiUrl Function()? _getCreateUrl;
+
+  /// Overrideable method which returns the creation Url for this data type. By
+  /// default, this proxies to [getListUrl].
+  ApiUrl getCreateUrl() => _getCreateUrl?.call() ?? getListUrl();
 
   /// Utility able to send network requests.
   final RestApi api;
@@ -207,7 +223,7 @@ class ApiSource<T> extends Source<T> {
   /// Submits a network request for data.
   Future<ApiResult> fetchItems(Params? params) async {
     final request = ReadApiRequest(
-      url: bindings.getListUrl(),
+      url: getListUrl(),
       params: params,
     );
     return api.get(request);
@@ -217,8 +233,8 @@ class ApiSource<T> extends Source<T> {
   Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
     final request = WriteApiRequest(
       url: bindings.getId(operation.item) == null
-          ? bindings.getCreateUrl()
-          : bindings.getDetailUrl(bindings.getId(operation.item)!),
+          ? getCreateUrl()
+          : getDetailUrl(bindings.getId(operation.item)!),
       body: bindings.toJson(operation.item),
     );
 
@@ -251,12 +267,12 @@ class ApiSource<T> extends Source<T> {
     WriteListOperation<T> operation,
   ) =>
       // TODO(craiglabenz): Could this have a default implementation?
-      throw Exception('Should never call ApiSource.setItems');
+      throw Exception('Should never call RestSource.setItems');
 
   @override
   Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
     final request = WriteApiRequest(
-      url: bindings.getDetailUrl(operation.itemId),
+      url: getDetailUrl(operation.itemId),
       body: null,
     );
     final result = await api.delete(request);
@@ -279,7 +295,7 @@ class ApiSource<T> extends Source<T> {
     final payload = operation.message as MessagePayload;
 
     final request = WriteApiRequest(
-      url: bindings.getCreateUrl(),
+      url: getCreateUrl(),
       body: payload.toJson(),
     );
 
@@ -313,7 +329,7 @@ class ApiSource<T> extends Source<T> {
     final payload = operation.message as MessagePayload;
 
     final request = WriteApiRequest(
-      url: bindings.getDetailUrl(operation.itemId),
+      url: getDetailUrl(operation.itemId),
       body: payload.toJson(),
     );
 

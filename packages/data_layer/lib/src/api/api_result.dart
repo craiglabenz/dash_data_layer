@@ -14,7 +14,7 @@ sealed class ApiResultBody with _$ApiResultBody {
   /// or a List of Maps, of length 1. For list endpoints, [data] is expected to
   /// either be a List of Maps, or a Map with a single key which points to a
   /// List of Maps. This special key should be specified by the
-  /// [ApiSource.resultsKey] value.
+  /// [RestSource.resultsKey] value.
   const factory ApiResultBody.json(Object data) = JsonApiResultBody;
 
   /// Container for a response body that came with the "text/plain" content type.

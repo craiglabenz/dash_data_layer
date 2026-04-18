@@ -17,16 +17,13 @@ abstract class TestRecord with _$TestRecord {
 
   static final bindings = Bindings<TestRecord>(
     fromJson: TestRecord.fromJson,
-    getDetailUrl: (id) => ApiUrl(path: 'records/$id'),
-    getListUrl: () => const ApiUrl(path: 'records'),
     toJson: (obj) => obj.toJson(),
     getId: (obj) => obj.id,
   );
 }
 
 @freezed
-sealed class TestRecordMessage
-    with _$TestRecordMessage {
+sealed class TestRecordMessage with _$TestRecordMessage {
   const factory TestRecordMessage.create({
     required String value,
   }) = _TestRecordMessageCreate;
@@ -42,8 +39,6 @@ sealed class TestRecordMessage
 
   static final bindings = Bindings<TestRecordMessage>(
     fromJson: TestRecordMessage.fromJson,
-    getDetailUrl: (_) => const ApiUrl(path: 'records'),
-    getListUrl: () => const ApiUrl(path: 'records'),
     toJson: (obj) => obj.toJson(),
     getId: (obj) => null,
   );

@@ -45,6 +45,7 @@ void main() {
       mockItemsExpiryBox = MockDateTimeBox();
       source = HiveSource(
         bindings: TestModel.bindings,
+        boxName: 'test_box',
         hiveInit: Future.value(),
         hive: mockHive,
       );
@@ -55,10 +56,10 @@ void main() {
         () => mockHive.openBox<Set<String>>(any(that: isA<String>())),
       ).thenAnswer((_) => Future.value(mockRequestBox));
       when(
-        () => mockHive.openBox<DateTime>('test/_requests_expiry'),
+        () => mockHive.openBox<DateTime>('test_box_requests_expiry'),
       ).thenAnswer((_) => Future.value(mockRequestCacheKeyExpiryBox));
       when(
-        () => mockHive.openBox<DateTime>('test/_items_expiry'),
+        () => mockHive.openBox<DateTime>('test_box_items_expiry'),
       ).thenAnswer((_) => Future.value(mockItemsExpiryBox));
       when(
         // ignore: strict_raw_type
@@ -322,8 +323,6 @@ void main() {
             'mock-message',
             Bindings<String>(
               fromJson: (_) => '',
-              getDetailUrl: (_) => const ApiUrl(path: ''),
-              getListUrl: () => const ApiUrl(path: ''),
               toJson: (_) => {},
               getId: (_) => null,
             ),
@@ -352,8 +351,6 @@ void main() {
             'mock-message',
             Bindings<String>(
               fromJson: (_) => '',
-              getDetailUrl: (_) => const ApiUrl(path: ''),
-              getListUrl: () => const ApiUrl(path: ''),
               toJson: (_) => {},
               getId: (_) => null,
             ),

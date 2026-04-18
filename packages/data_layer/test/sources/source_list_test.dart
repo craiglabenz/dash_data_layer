@@ -114,8 +114,10 @@ SourceList<TestModel> getSourceList(RequestDelegate delegate) =>
       sources: <Source<TestModel>>[
         LocalMemorySource<TestModel>(bindings: TestModel.bindings),
         LocalMemorySource<TestModel>(bindings: TestModel.bindings),
-        ApiSource<TestModel>(
+        RestSource<TestModel>(
           bindings: TestModel.bindings,
+          getDetailUrl: (id) => ApiUrl(path: 'test/$id'),
+          getListUrl: () => const ApiUrl(path: 'test/'),
           restApi: RestApi(
             apiBaseUrl: 'https://fake.com',
             headersBuilder: () => requestHeaders,
@@ -776,15 +778,35 @@ void main() {
 
       // Set fresh Flintstone
       await sl.setItems(
-        gwlo([
-          flintstone,
-        ], RequestDetails(requestType: .local, ttl: const Duration(days: 1))),
+        gwlo(
+          [flintstone],
+          RequestDetails(requestType: .local, ttl: const Duration(days: 1)),
+        ),
       );
 
       final readResult = await sl.getItems(grlo(RequestDetails()));
       final items = readResult.getOrRaise().items;
       expect(items.length, equals(1));
       expect(items, contains(flintstone));
+    });
+
+    test('fallback for stale data in getById', () async {
+      // Returns Fred from the mock remote ApiSource
+      final sl = getSourceList(getRequestDelegate([listResponseBody]));
+
+      // Set stale Fred locally (ttl is incredibly short)
+      await sl.setItem(
+        gwo(fred, RequestDetails(requestType: .local, ttl: .zero)),
+      );
+
+      // When requesting without specifically saying `.local`, the sourceList
+      // will evaluate the cache, see it is cleanly expired/stale, and fall back
+      // nicely to the server to fetch a fresh `fred`.
+      final readResult = await sl.getById(gro(fred.id!, RequestDetails()));
+      final item = readResult.getOrRaise().item;
+
+      expect(item, isNotNull);
+      expect(item, equals(fred));
     });
   });
 }

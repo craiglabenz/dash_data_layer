@@ -19,36 +19,37 @@ class HiveSource<T> extends LocalSource<T> {
   /// {@macro HiveSource}
   factory HiveSource({
     required Bindings<T> bindings,
+    required String boxName,
     required Future<void> hiveInit,
     HiveInterface? hive,
   }) {
     return HiveSource._(
       itemsCache: ExpiringCache<T>(
         cache: HiveCache<T>(
-          bindings.getListUrl().path,
+          boxName,
           hiveInit,
           hive: hive,
         ),
         cacheExpiryTimes: HiveCache<DateTime>(
-          '${bindings.getListUrl().path}_items_expiry',
+          '${boxName}_items_expiry',
           hiveInit,
           hive: hive,
         ),
       ),
       requestCache: ExpiringCache<Set<String>>(
         cache: HiveCache<Set<String>>(
-          '${bindings.getListUrl().path}_requests',
+          '${boxName}_requests',
           hiveInit,
           hive: hive,
         ),
         cacheExpiryTimes: HiveCache<DateTime>(
-          '${bindings.getListUrl().path}_requests_expiry',
+          '${boxName}_requests_expiry',
           hiveInit,
           hive: hive,
         ),
       ),
       paginatedRequestCache: HiveCache<Set<String>>(
-        '${bindings.getListUrl().path}_paginated_requests',
+        '${boxName}_paginated_requests',
         hiveInit,
         hive: hive,
       ),
