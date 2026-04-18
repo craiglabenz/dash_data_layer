@@ -615,19 +615,21 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   @override
-  Future<WriteResult<T>> createMessage(
-    CreateMessageOperation<T> operation,
+  Future<WriteResult<T>> sendMessage(
+    SendMessageOperation<T> operation,
   ) async {
     return _guarded<WriteResult<T>>(
       operation,
-      () => _createMessage(operation),
+      () => _sendMessage(operation),
       () => WriteFailure<T>(.connectivity, 'The device is offline.'),
     );
   }
 
-  Future<WriteResult<T>> _createMessage(
-    CreateMessageOperation<T> operation,
+  Future<WriteResult<T>> _sendMessage(
+    SendMessageOperation<T> operation,
   ) async {
+    WriteResult<T>? finalResult;
+
     final emptySources = getSources(requestType: operation.details.requestType)
         .where((ms) => !ms.unmatched && ms.source is LocalSource)
         .map((ms) => ms.source)
@@ -635,72 +637,24 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
     for (final ms in getSources(
       requestType: operation.details.requestType,
-      reversed: true, // Hit .remote Source first since item is definitely new
+      reversed: operation.targetId == null, // Hit API first if target is new
     )) {
       if (ms.unmatched || ms.source is LocalSource) continue;
 
-      final result = await ms.source.createMessage(operation);
-
-      switch (result) {
-        case WriteSuccess<T>():
-          if (bindings.getId(result.item) != null) {
-            await _cacheItem(
-              emptySources,
-              WriteOperation<T>(
-                operationId: operation.operationId,
-                details: operation.details,
-                item: result.item,
-                createdAt: operation.createdAt,
-              ),
-            );
-          }
-          return result;
-        case WriteFailure<T>():
-          return result;
-      }
-    }
-    return WriteFailure<T>(
-      FailureReason.serverError,
-      'No source successfully created the message.',
-    );
-  }
-
-  @override
-  Future<WriteResult<T>> updateMessage(
-    UpdateMessageOperation<T> operation,
-  ) async {
-    return _guarded<WriteResult<T>>(
-      operation,
-      () => _updateMessage(operation),
-      () => WriteFailure<T>(.connectivity, 'The device is offline.'),
-    );
-  }
-
-  Future<WriteResult<T>> _updateMessage(
-    UpdateMessageOperation<T> operation,
-  ) async {
-    WriteResult<T>? finalResult;
-
-    for (final ms in getSources(requestType: operation.details.requestType)) {
-      if (ms.unmatched) continue;
-
-      final result = await ms.source.updateMessage(operation);
+      final result = await ms.source.sendMessage(operation);
       if (ms.source.sourceType == SourceType.remote) {
         finalResult = result;
       }
     }
 
     if (finalResult is WriteSuccess<T>) {
-      final localSources =
-          getSources(requestType: operation.details.requestType)
-              .where((ms) => !ms.unmatched && ms.source is LocalSource)
-              .map((ms) => ms.source);
-      for (final s in localSources) {
-        await s.setItem(
+      if (bindings.getId(finalResult.item) != null) {
+        await _cacheItem(
+          emptySources,
           WriteOperation<T>(
             operationId: operation.operationId,
-            item: finalResult.item,
             details: operation.details,
+            item: finalResult.item,
             createdAt: operation.createdAt,
           ),
         );
@@ -710,7 +664,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     return finalResult ??
         WriteFailure<T>(
           FailureReason.serverError,
-          'No source successfully updated the message.',
+          'No source successfully sent the message.',
         );
   }
 
@@ -812,10 +766,8 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
         await setItems(operation);
       case DeleteOperation<T>():
         await delete(operation);
-      case CreateMessageOperation<T>():
-        await createMessage(operation);
-      case UpdateMessageOperation<T>():
-        await updateMessage(operation);
+      case SendMessageOperation<T>():
+        await sendMessage(operation);
     }
   }
 

@@ -26,16 +26,17 @@ void main() {
         apiSource = ProxySource<TestRecord>(
           sourceType: SourceType.remote,
           bindings: TestRecord.bindings,
-          createMessageHandler: (op) async {
+          sendMessageHandler: (op) async {
             final payload = op.message as MessagePayload<TestRecordMessage>;
-            return TestRecord(
-              id: 'temp-id',
-              value: payload.message.value ?? '',
-              createdAt: DateTime(2025),
-            );
-          },
-          updateMessageHandler: (op) async {
-            return apiUpdateCompleter.future;
+            if (op.targetId == null) {
+              return TestRecord(
+                id: 'temp-id',
+                value: payload.message.value ?? '',
+                createdAt: DateTime(2025),
+              );
+            } else {
+              return apiUpdateCompleter.future;
+            }
           },
         );
 
@@ -53,11 +54,11 @@ void main() {
       });
 
       test(
-        'createMessage populates apiSource and caches in memorySource',
+        'sendMessage (creation) populates apiSource and caches in memorySource',
         () async {
           const msg = TestRecordMessage.create(value: 'Hello World');
 
-          final created = await repository.createMessage(msg);
+          final created = await repository.sendMessage(msg);
 
           expect(created, isNotNull);
           expect(created!.id, 'temp-id');
@@ -82,7 +83,7 @@ void main() {
       );
 
       test(
-        'updateMessage leaves memorySource alone while apiSource is pending',
+        'sendMessage (update) leaves memorySource alone while apiSource is pending',
         () async {
           // 1. Setup existing item directly in cache
           final existingRecord = TestRecord(
@@ -118,9 +119,9 @@ void main() {
 
           // We don't await immediately, because we want to see if the cache
           // remains intact before the API responds
-          final future = repository.updateMessage('123', msg);
+          final future = repository.sendMessage(msg, targetId: '123');
 
-          // Let the event loop execute memorySource.updateMessage before
+          // Let the event loop execute memorySource.sendMessage before
           // pausing at the apiCompleter
           await Future<void>.delayed(Duration.zero);
 

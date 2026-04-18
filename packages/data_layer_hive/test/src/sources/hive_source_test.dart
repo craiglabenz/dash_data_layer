@@ -315,9 +315,9 @@ void main() {
     });
 
     test(
-      'createMessage deferrs to remote server by returning WriteFailure',
+      'sendMessage defers to remote server by returning WriteFailure',
       () async {
-        final msgOp = CreateMessageOperation<TestModel>(
+        final msgOp = SendMessageOperation<TestModel>(
           operationId: '1',
           message: MessagePayload<String>(
             'mock-message',
@@ -331,35 +331,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final result = await source.createMessage(msgOp);
-
-        expect(result, isA<WriteFailure<TestModel>>());
-        expect(
-          (result as WriteFailure<TestModel>).reason,
-          FailureReason.badRequest,
-        );
-      },
-    );
-
-    test(
-      'updateMessage defers to remote server by returning WriteFailure',
-      () async {
-        final msgOp = UpdateMessageOperation<TestModel>(
-          operationId: '1',
-          itemId: '123',
-          message: MessagePayload<String>(
-            'mock-message',
-            Bindings<String>(
-              fromJson: (_) => '',
-              toJson: (_) => {},
-              getId: (_) => null,
-            ),
-          ),
-          details: RequestDetails.write(),
-          createdAt: DateTime.now(),
-        );
-
-        final result = await source.updateMessage(msgOp);
+        final result = await source.sendMessage(msgOp);
 
         expect(result, isA<WriteFailure<TestModel>>());
         expect(

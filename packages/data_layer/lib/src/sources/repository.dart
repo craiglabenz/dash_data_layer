@@ -288,41 +288,19 @@ class MessageRepository<T, M> extends Repository<T> {
   /// itself before being sent to the server.
   final Bindings<M> messageBindings;
 
-  /// Creates a message-based entry and caches the resulting, fully hydrated
-  /// object of type [T].
-  Future<T?> createMessage(M message, {RequestDetails? details}) async {
-    await ready;
-    final result = await sourceList.createMessage(
-      CreateMessageOperation<T>(
-        operationId: generateOperationId(),
-        message: MessagePayload<M>(message, messageBindings),
-        details: details ?? RequestDetails.write(),
-        createdAt: getTime(),
-      ),
-    );
-    switch (result) {
-      case WriteSuccess<T>():
-        return result.item;
-      case WriteFailure<T>():
-        return null;
-    }
-  }
-
-  /// Sends a message-based update for an existing entry (useful for sending
-  /// lightweight partial JSON to an API), optimistically attempting to patch
-  /// local caches instantly, and then storing the latest [T] returned by the
-  /// remote data source.
-  Future<T?> updateMessage(
-    String id,
+  /// Sends a generic message structure which serves as either a creation
+  /// or update depending on the evaluated presence of [targetId].
+  Future<T?> sendMessage(
     M message, {
+    String? targetId,
     RequestDetails? details,
   }) async {
     await ready;
-    final result = await sourceList.updateMessage(
-      UpdateMessageOperation<T>(
+    final result = await sourceList.sendMessage(
+      SendMessageOperation<T>(
         operationId: generateOperationId(),
-        itemId: id,
         message: MessagePayload<M>(message, messageBindings),
+        targetId: targetId,
         details: details ?? RequestDetails.write(),
         createdAt: getTime(),
       ),
