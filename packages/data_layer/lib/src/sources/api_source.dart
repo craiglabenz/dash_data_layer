@@ -266,6 +266,74 @@ class ApiSource<T> extends Source<T> {
     };
   }
 
+  @override
+  Future<WriteResult<T>> createMessage(
+    CreateMessageOperation<T> operation,
+  ) async {
+    if (operation.message is! MessagePayload) {
+      return WriteFailure<T>(
+        FailureReason.badRequest,
+        'Message must be wrapped in MessagePayload',
+      );
+    }
+    final payload = operation.message as MessagePayload;
+
+    final request = WriteApiRequest(
+      url: bindings.getCreateUrl(),
+      body: payload.toJson(),
+    );
+
+    final result = await api.post(request);
+
+    switch (result) {
+      case ApiSuccess():
+        final responseItem = hydrateItemResponse(result);
+        if (responseItem == null) {
+          return WriteFailure<T>(
+            FailureReason.serverError,
+            'Failed to parse created message response',
+          );
+        }
+        return WriteSuccess<T>(responseItem, details: operation.details);
+      case ApiError():
+        return WriteResult.fromApiError(result);
+    }
+  }
+
+  @override
+  Future<WriteResult<T>> updateMessage(
+    UpdateMessageOperation<T> operation,
+  ) async {
+    if (operation.message is! MessagePayload) {
+      return WriteFailure<T>(
+        FailureReason.badRequest,
+        'Message must be wrapped in MessagePayload',
+      );
+    }
+    final payload = operation.message as MessagePayload;
+
+    final request = WriteApiRequest(
+      url: bindings.getDetailUrl(operation.itemId),
+      body: payload.toJson(),
+    );
+
+    final result = await api.update(request);
+
+    switch (result) {
+      case ApiSuccess():
+        final responseItem = hydrateItemResponse(result);
+        if (responseItem == null) {
+          return WriteFailure<T>(
+            FailureReason.serverError,
+            'Failed to parse updated message response',
+          );
+        }
+        return WriteSuccess<T>(responseItem, details: operation.details);
+      case ApiError():
+        return WriteResult.fromApiError(result);
+    }
+  }
+
   /// Overrideable hook to extract the raw item payloads out of the response
   /// body.
   List<Json> extractItemsFromJsonResponse(JsonApiResultBody body) {

@@ -48,10 +48,20 @@ mixin WriteMixin<T> {
   Future<DeleteResult<T>> delete(DeleteOperation<T> operation);
 }
 
+/// Introduces message operations for creation and generic updates.
+mixin MessageWriteMixin<T> {
+  /// Sends a creation message payload.
+  Future<WriteResult<T>> createMessage(CreateMessageOperation<T> operation);
+
+  /// Sends an update message payload.
+  Future<WriteResult<T>> updateMessage(UpdateMessageOperation<T> operation);
+}
+
 /// {@template DataContract}
 /// Outline of core methods to which all data loaders must adhere.
 /// {@endtemplate}
-abstract class DataContract<T> with ReadMixin<T>, WriteMixin<T> {
+abstract class DataContract<T>
+    with ReadMixin<T>, WriteMixin<T>, MessageWriteMixin<T> {
   /// {@macro DataContract}
   const DataContract();
 }

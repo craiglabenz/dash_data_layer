@@ -159,3 +159,57 @@ Map<String, dynamic> _$DeleteOperationToJson<T>(
   'attemptNumber': instance.attemptNumber,
   'runtimeType': instance.$type,
 };
+
+CreateMessageOperation<T> _$CreateMessageOperationFromJson<T>(
+  Map<String, dynamic> json,
+  T Function(Object? json) fromJsonT,
+) => CreateMessageOperation<T>(
+  operationId: json['operationId'] as String,
+  message: json['message'] as Object,
+  details: const RequestDetailsConverter().fromJson(
+    json['details'] as Map<String, Object?>,
+  ),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  attemptNumber: (json['attemptNumber'] as num?)?.toInt() ?? 0,
+  $type: json['runtimeType'] as String?,
+);
+
+Map<String, dynamic> _$CreateMessageOperationToJson<T>(
+  CreateMessageOperation<T> instance,
+  Object? Function(T value) toJsonT,
+) => <String, dynamic>{
+  'operationId': instance.operationId,
+  'message': instance.message,
+  'details': const RequestDetailsConverter().toJson(instance.details),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'attemptNumber': instance.attemptNumber,
+  'runtimeType': instance.$type,
+};
+
+UpdateMessageOperation<T> _$UpdateMessageOperationFromJson<T>(
+  Map<String, dynamic> json,
+  T Function(Object? json) fromJsonT,
+) => UpdateMessageOperation<T>(
+  operationId: json['operationId'] as String,
+  itemId: json['itemId'] as String,
+  message: json['message'] as Object,
+  details: const RequestDetailsConverter().fromJson(
+    json['details'] as Map<String, Object?>,
+  ),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  attemptNumber: (json['attemptNumber'] as num?)?.toInt() ?? 0,
+  $type: json['runtimeType'] as String?,
+);
+
+Map<String, dynamic> _$UpdateMessageOperationToJson<T>(
+  UpdateMessageOperation<T> instance,
+  Object? Function(T value) toJsonT,
+) => <String, dynamic>{
+  'operationId': instance.operationId,
+  'itemId': instance.itemId,
+  'message': instance.message,
+  'details': const RequestDetailsConverter().toJson(instance.details),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'attemptNumber': instance.attemptNumber,
+  'runtimeType': instance.$type,
+};

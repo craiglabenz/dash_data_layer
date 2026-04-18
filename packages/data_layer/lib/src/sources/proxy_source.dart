@@ -19,6 +19,12 @@ typedef SetItems<T> = Future<List<T>?> Function(WriteListOperation<T>);
 /// Logic to activate `deleteItem`.
 typedef DeleteItem<T> = Future<DeleteResult<T>> Function(DeleteOperation<T>);
 
+/// Logic to activate `createMessage`.
+typedef CreateMessage<T> = Future<T?> Function(CreateMessageOperation<T>);
+
+/// Logic to activate `updateMessage`.
+typedef UpdateMessage<T> = Future<T?> Function(UpdateMessageOperation<T>);
+
 /// {@template ProxySource}
 /// Source whose constructor accepts a value for each operation type.
 ///
@@ -36,6 +42,8 @@ class ProxySource<T> extends Source<T> {
     this.setItemHandler,
     this.setItemsHandler,
     this.deleteHandler,
+    this.createMessageHandler,
+    this.updateMessageHandler,
   });
 
   final _log = Logger('ProxySource<T>');
@@ -57,6 +65,12 @@ class ProxySource<T> extends Source<T> {
 
   /// If supplied, used to satisfy [delete].
   final DeleteItem<T>? deleteHandler;
+
+  /// If supplied, used to satisfy [createMessage].
+  final CreateMessage<T>? createMessageHandler;
+
+  /// If supplied, used to satisfy [updateMessage].
+  final UpdateMessage<T>? updateMessageHandler;
 
   @override
   Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
@@ -188,6 +202,44 @@ class ProxySource<T> extends Source<T> {
       objs ?? operation.items,
       details: operation.details,
     );
+  }
+
+  @override
+  Future<WriteResult<T>> createMessage(
+    CreateMessageOperation<T> operation,
+  ) async {
+    if (createMessageHandler == null) {
+      throw UnimplementedError();
+    }
+    try {
+      final obj = await createMessageHandler!.call(operation);
+      return WriteSuccess<T>(obj as T, details: operation.details);
+    } on Exception catch (e) {
+      _log.severe(e);
+      return WriteFailure<T>(
+        FailureReason.serverError,
+        'Failed to create message',
+      );
+    }
+  }
+
+  @override
+  Future<WriteResult<T>> updateMessage(
+    UpdateMessageOperation<T> operation,
+  ) async {
+    if (updateMessageHandler == null) {
+      throw UnimplementedError();
+    }
+    try {
+      final obj = await updateMessageHandler!.call(operation);
+      return WriteSuccess<T>(obj as T, details: operation.details);
+    } on Exception catch (e) {
+      _log.severe(e);
+      return WriteFailure<T>(
+        FailureReason.serverError,
+        'Failed to update message',
+      );
+    }
   }
 
   @override

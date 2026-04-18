@@ -139,7 +139,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   /// Checks connectivity if a [ConnectivityService] is provided. If the device
-  /// is offline...
+  /// is offline, throws a [NoConnectivityException].
   ///
   /// A no-op if no [ConnectivityService] is provided.
   Future<void> checkConnectivity(RequestDetails details) async {
@@ -158,7 +158,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     final matchedSources = getSources(
       requestType: details.requestType,
       reversed: true,
-    ).where((s) => s.matched).map((s) => s.source).toList();
+    ).where((s) => s.matched).map((s) => s.source);
 
     for (final source in matchedSources) {
       if (source is WatchableSource<T>) {
@@ -167,8 +167,8 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     }
 
     throw StateError(
-      'Cannot call watch methods on a SourceList when none of its valid '
-      'sources are a WatchableSource.',
+      'Cannot call watch methods on a SourceList when none of its sources are '
+      'a valid WatchableSource.',
     );
   }
 
@@ -431,12 +431,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   Future<ReadListResult<T>> _getByIds(ReadByIdsOperation<T> operation) async {
     operation.details.assertEmpty('SourceList<$T>.getByIds');
 
-    try {
-      await checkConnectivity(operation.details);
-    } on NoConnectivityException {
-      return ReadListFailure<T>(.connectivity, 'The device is offline.');
-    }
-
     final items = <String, T>{};
     final pastSources = <Source<T>>[];
     final backfillMap = <Source<T>, Set<T>>{};
@@ -590,12 +584,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   Future<WriteResult<T>> _setItem(WriteOperation<T> operation) async {
-    try {
-      await checkConnectivity(operation.details);
-    } on NoConnectivityException {
-      return WriteFailure<T>(.connectivity, 'The device is offline.');
-    }
-
     T itemCopy = operation.item;
     for (final ms in getSources(
       requestType: operation.details.requestType,
@@ -624,6 +612,106 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       }
     }
     return WriteSuccess<T>(itemCopy, details: operation.details);
+  }
+
+  @override
+  Future<WriteResult<T>> createMessage(
+    CreateMessageOperation<T> operation,
+  ) async {
+    return _guarded<WriteResult<T>>(
+      operation,
+      () => _createMessage(operation),
+      () => WriteFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<WriteResult<T>> _createMessage(
+    CreateMessageOperation<T> operation,
+  ) async {
+    final emptySources = getSources(requestType: operation.details.requestType)
+        .where((ms) => !ms.unmatched && ms.source is LocalSource)
+        .map((ms) => ms.source)
+        .toList();
+
+    for (final ms in getSources(
+      requestType: operation.details.requestType,
+      reversed: true, // Hit .remote Source first since item is definitely new
+    )) {
+      if (ms.unmatched || ms.source is LocalSource) continue;
+
+      final result = await ms.source.createMessage(operation);
+
+      switch (result) {
+        case WriteSuccess<T>():
+          if (bindings.getId(result.item) != null) {
+            await _cacheItem(
+              emptySources,
+              WriteOperation<T>(
+                operationId: operation.operationId,
+                details: operation.details,
+                item: result.item,
+                createdAt: operation.createdAt,
+              ),
+            );
+          }
+          return result;
+        case WriteFailure<T>():
+          return result;
+      }
+    }
+    return WriteFailure<T>(
+      FailureReason.serverError,
+      'No source successfully created the message.',
+    );
+  }
+
+  @override
+  Future<WriteResult<T>> updateMessage(
+    UpdateMessageOperation<T> operation,
+  ) async {
+    return _guarded<WriteResult<T>>(
+      operation,
+      () => _updateMessage(operation),
+      () => WriteFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<WriteResult<T>> _updateMessage(
+    UpdateMessageOperation<T> operation,
+  ) async {
+    WriteResult<T>? finalResult;
+
+    for (final ms in getSources(requestType: operation.details.requestType)) {
+      if (ms.unmatched) continue;
+
+      final result = await ms.source.updateMessage(operation);
+      if (ms.source.sourceType == SourceType.remote) {
+        finalResult = result;
+      }
+    }
+
+    if (finalResult is WriteSuccess<T>) {
+      final localSources =
+          getSources(requestType: operation.details.requestType)
+              .where((ms) => !ms.unmatched && ms.source is LocalSource)
+              .map((ms) => ms.source);
+      for (final s in localSources) {
+        await s.setItem(
+          WriteOperation<T>(
+            operationId: operation.operationId,
+            item: finalResult.item,
+            details: operation.details,
+            createdAt: operation.createdAt,
+          ),
+        );
+      }
+    }
+
+    return finalResult ??
+        WriteFailure<T>(
+          FailureReason.serverError,
+          'No source successfully updated the message.',
+        );
   }
 
   @override
@@ -724,6 +812,10 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
         await setItems(operation);
       case DeleteOperation<T>():
         await delete(operation);
+      case CreateMessageOperation<T>():
+        await createMessage(operation);
+      case UpdateMessageOperation<T>():
+        await updateMessage(operation);
     }
   }
 

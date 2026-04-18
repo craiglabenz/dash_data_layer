@@ -268,3 +268,70 @@ class Repository<T> with ReadinessMixin<void> {
   @override
   String toString() => 'Repository<$T>';
 }
+
+/// {@template MessageRepository}
+/// A highly-typed adapter for a [Repository] that cleanly handles discrete
+/// message/patch types (e.g. Freezed unions) for sending creation or update
+/// operations securely over an untyped boundary, before being transformed into
+/// the principal [T] object.
+/// {@endtemplate}
+class MessageRepository<T, M> extends Repository<T> {
+  /// {@macro MessageRepository}
+  MessageRepository(
+    super.sourceList, {
+    required this.messageBindings,
+    super.loggerName,
+    super.getTime,
+  });
+
+  /// The strongly-typed bindings detailing how your custom message serializes
+  /// itself before being sent to the server.
+  final Bindings<M> messageBindings;
+
+  /// Creates a message-based entry and caches the resulting, fully hydrated
+  /// object of type [T].
+  Future<T?> createMessage(M message, {RequestDetails? details}) async {
+    await ready;
+    final result = await sourceList.createMessage(
+      CreateMessageOperation<T>(
+        operationId: generateOperationId(),
+        message: MessagePayload<M>(message, messageBindings),
+        details: details ?? RequestDetails.write(),
+        createdAt: getTime(),
+      ),
+    );
+    switch (result) {
+      case WriteSuccess<T>():
+        return result.item;
+      case WriteFailure<T>():
+        return null;
+    }
+  }
+
+  /// Sends a message-based update for an existing entry (useful for sending
+  /// lightweight partial JSON to an API), optimistically attempting to patch
+  /// local caches instantly, and then storing the latest [T] returned by the
+  /// remote data source.
+  Future<T?> updateMessage(
+    String id,
+    M message, {
+    RequestDetails? details,
+  }) async {
+    await ready;
+    final result = await sourceList.updateMessage(
+      UpdateMessageOperation<T>(
+        operationId: generateOperationId(),
+        itemId: id,
+        message: MessagePayload<M>(message, messageBindings),
+        details: details ?? RequestDetails.write(),
+        createdAt: getTime(),
+      ),
+    );
+    switch (result) {
+      case WriteSuccess<T>():
+        return result.item;
+      case WriteFailure<T>():
+        return null;
+    }
+  }
+}

@@ -79,6 +79,27 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = DeleteOperation;
 
+  /// A generic message operation for creating an object (no ID required).
+  const factory Operation.createMessage({
+    required String operationId,
+    required Object message,
+    @RequestDetailsConverter() //
+    required RequestDetails details,
+    required DateTime createdAt,
+    @Default(0) int attemptNumber,
+  }) = CreateMessageOperation;
+
+  /// A generic message operation for updating an object via partial/message.
+  const factory Operation.updateMessage({
+    required String operationId,
+    required String itemId,
+    required Object message,
+    @RequestDetailsConverter() //
+    required RequestDetails details,
+    required DateTime createdAt,
+    @Default(0) int attemptNumber,
+  }) = UpdateMessageOperation;
+
   factory Operation.fromJson(
     Map<String, dynamic> json,
     T Function(Object?) fromJsonT,
@@ -94,7 +115,9 @@ sealed class Operation<T> with _$Operation<T> {
     ReadByIdsOperation<T>() => true,
     WriteOperation<T>() ||
     WriteListOperation<T>() ||
-    DeleteOperation<T>() => false,
+    DeleteOperation<T>() ||
+    CreateMessageOperation<T>() ||
+    UpdateMessageOperation<T>() => false,
   };
 
   /// The cache key for this operation. This is used to deduplicate operations
@@ -142,6 +165,22 @@ sealed class Operation<T> with _$Operation<T> {
           '${sortedIds.join('-')}-${details.cacheKey}',
           rounds: 1,
           salt: 'read-ids-op',
+        ).toString();
+      case CreateMessageOperation<T>(:final message, :final details):
+        return Crypt.sha256(
+          '${message.hashCode}-${details.cacheKey}',
+          rounds: 1,
+          salt: 'create-message-op',
+        ).toString();
+      case UpdateMessageOperation<T>(
+        :final itemId,
+        :final message,
+        :final details,
+      ):
+        return Crypt.sha256(
+          '$itemId-${message.hashCode}-${details.cacheKey}',
+          rounds: 1,
+          salt: 'update-message-op',
         ).toString();
     }
   }
