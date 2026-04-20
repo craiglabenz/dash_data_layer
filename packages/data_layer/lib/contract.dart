@@ -50,7 +50,7 @@ mixin WriteMixin<T> {
 
 /// Introduces message operations for creation and generic updates.
 mixin MessageWriteMixin<T> {
-  /// Sends a message object (e.g. for patching or decoupled creations) to the [DataContract].
+  /// Sends a message object (e.g. for patching or decoupled creations).
   Future<WriteResult<T>> sendMessage(SendMessageOperation<T> operation);
 }
 

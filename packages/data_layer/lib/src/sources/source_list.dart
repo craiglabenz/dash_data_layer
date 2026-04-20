@@ -50,6 +50,10 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
         }
       });
     }
+    assert(() {
+      validate();
+      return true;
+    }(), 'SourceList has invalid definition.');
   }
 
   /// Testing-friendly constructor for wiring things up that don't actually
@@ -329,6 +333,13 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     Future<R> Function() fn,
     R Function() connectivityFailureBuilder,
   ) async {
+    assert(
+      () {
+        operation.validate();
+        return true;
+      }(),
+      '$operation has invalid configuration',
+    );
     if (retryPolicy == null) {
       return fn();
     }
@@ -678,11 +689,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   Future<WriteListResult<T>> _setItems(WriteListOperation<T> operation) async {
-    try {
-      await checkConnectivity(operation.details);
-    } on NoConnectivityException {
-      return WriteListFailure<T>(.connectivity, 'The device is offline.');
-    }
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) continue;
       final result = await ms.source.setItems(operation);
@@ -703,11 +709,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   Future<DeleteResult<T>> _delete(DeleteOperation<T> operation) async {
-    try {
-      await checkConnectivity(operation.details);
-    } on NoConnectivityException {
-      return DeleteFailure<T>(.connectivity, 'The device is offline.');
-    }
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) continue;
       final result = await ms.source.delete(operation);
@@ -777,6 +778,22 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       _connectivitySub?.cancel() ?? Future<void>.value(),
       _retrySub?.cancel() ?? Future<void>.value(),
     ]);
+  }
+
+  /// Checks for invalid configurations.
+  void validate() {
+    bool hasSeenRemoteSource = false;
+    for (final source in sources) {
+      if (source.sourceType == .remote) {
+        hasSeenRemoteSource = true;
+      }
+      if (hasSeenRemoteSource && source.sourceType == .local) {
+        throw AssertionError(
+          'Local Source found after Remote Source in $this. Local Sources must '
+          'precede Remote Sources.',
+        );
+      }
+    }
   }
 
   @override

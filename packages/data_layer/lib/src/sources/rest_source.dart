@@ -94,7 +94,7 @@ class RestSource<T> extends Source<T> {
   Future<ReadListResult<T>> getItems(ReadListOperation<T> operation) async {
     final Params params = <String, String>{};
 
-    // Add all specified filters as query parameters
+    // Add a specified filter as query parameters
     if (operation.details.filter != null) {
       params.addAll(operation.details.filter!.toParams());
     }
@@ -231,19 +231,19 @@ class RestSource<T> extends Source<T> {
 
   @override
   Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
+    final isInserting =
+        bindings.getId(operation.item) == null || operation.details.forceInsert;
     final request = WriteApiRequest(
-      url: bindings.getId(operation.item) == null
+      url: isInserting
           ? getCreateUrl()
           : getDetailUrl(bindings.getId(operation.item)!),
       body: bindings.toJson(operation.item),
     );
 
-    final result =
-        await (bindings.getId(operation.item) ==
-                null //
-            ? api.post(request)
-            : api.update(request) //
-              );
+    final result = await (isInserting
+        ? api.post(request)
+        : api.update(request) //
+          );
 
     switch (result) {
       case ApiSuccess():
@@ -267,7 +267,10 @@ class RestSource<T> extends Source<T> {
     WriteListOperation<T> operation,
   ) =>
       // TODO(craiglabenz): Could this have a default implementation?
-      throw Exception('Should never call RestSource.setItems');
+      throw Exception(
+        'RestSource.setItems is undefined, as your desired behavior is too '
+        'unpredictable to be offered by pkg:data_layer directly.',
+      );
 
   @override
   Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {

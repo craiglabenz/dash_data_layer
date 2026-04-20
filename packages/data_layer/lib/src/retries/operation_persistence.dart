@@ -20,7 +20,7 @@ abstract class OperationPersistence<T> {
 
   /// Schedules a [Operation] to be retried later. Exponential backoff
   /// is used if the operation has failed multiple times.
-  Future<void> schedule(Operation<T> operation);
+  Future<void> schedule(Operation<T> operation, {Duration? maxWait});
 
   /// Stream of [Operation]s whose time to retry has come. It is the
   /// job of the [RetryPolicy] to subscribe to this stream and ferry each
@@ -65,11 +65,19 @@ class InMemoryOperationPersistence<T> implements OperationPersistence<T> {
   }
 
   @override
-  Future<void> schedule(Operation<T> operation) async {
+  Future<void> schedule(Operation<T> operation, {Duration? maxWait}) async {
+    Duration wait = Duration(
+      seconds: pow(2, operation.attemptNumber).toInt(),
+    );
+
+    if (maxWait != null && maxWait.inSeconds < wait.inSeconds) {
+      wait = maxWait;
+    }
+
     _scheduledOperations[operation.operationId] = operation;
     _retryTimers.add(
       _scheduler.schedule(
-        Duration(seconds: pow(2, operation.attemptNumber).toInt()),
+        wait,
         () {
           _streamController.add(operation.retry());
           _scheduledOperations.remove(operation.operationId);

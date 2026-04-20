@@ -45,7 +45,5 @@ class Click {
     fromJson: Click.fromJson,
     toJson: (Click obj) => obj.toJson(),
     getId: (Click obj) => obj.id,
-    getDetailUrl: (String id) => ApiUrl(path: 'clicks/$id'),
-    getListUrl: () => const ApiUrl(path: 'clicks/'),
   );
 }

@@ -19,7 +19,7 @@ typedef CacheKey = String;
 ///
 /// ```dart
 /// final localSource = LocalMemorySource<T>();
-/// 
+///
 /// await localSource.setItems(
 ///   WriteListOperation<T>(
 ///     items: [MyClass('a'), MyClass('b')],
@@ -28,7 +28,7 @@ typedef CacheKey = String;
 ///     ),
 ///   ),
 /// );
-/// 
+///
 /// final items = await localSource.getItems(
 ///   ReadByIdsOperation<T>(
 ///     operationId: Uuid.v7(),
@@ -48,7 +48,7 @@ typedef CacheKey = String;
 ///     details: RequestDetails(),
 ///   ),
 /// );
-/// 
+///
 /// // Unless other operations have also taken place, `someMoreItems` will be
 /// // an empty list, because the `LocalSource` has never received a write
 /// // operation with a `RequestDetails` which produced the same `cacheKey` as
@@ -219,6 +219,9 @@ class RequestDetails extends Equatable {
 
   /// Equivalent [RequestDetails] but for the removal of a global or refresh
   /// [RequestType].
+  ///
+  /// [shouldRetry] is also not copied, as that has no impact on local
+  /// operations.
   RequestDetails localCopy() => RequestDetails(
     forceInsert: forceInsert,
     requestType: .local,

@@ -706,7 +706,7 @@ void main() {
       );
       expect(
         () => sl.setItems(gwlo([newObj], refreshDetails)),
-        throwsA(isA<Exception>()),
+        throwsA(isA<StateError>()),
       );
     });
   });

@@ -168,6 +168,29 @@ sealed class Operation<T> with _$Operation<T> {
     }
   }
 
+  /// Detects invalid configurations to warn developers of possible mistakes.
+  void validate() {
+    final requestType = details.requestType;
+    if (isRead && details.forceInsert) {
+      throw StateError(
+        'Setting forceInsert to true for ReadOperations is invalid',
+      );
+    }
+    if (requestType == .allLocal && this is! ReadListOperation) {
+      throw StateError(
+        'RequestType.allLocal is only valid in getItems method. '
+        'Other methods are unlikely to honor this request, as its '
+        'behavior would be contradictory and undefined.',
+      );
+    }
+    if (requestType == .refresh && isWrite) {
+      throw StateError(
+        'Using a requestType of .allLocal or .refresh is invalid for '
+        'writes',
+      );
+    }
+  }
+
   /// True if this operation is a write.
   bool get isWrite => !isRead;
 }

@@ -83,7 +83,8 @@ void main() {
       );
 
       test(
-        'sendMessage (update) leaves memorySource alone while apiSource is pending',
+        'sendMessage (update) leaves memorySource alone while apiSource is '
+        'pending',
         () async {
           // 1. Setup existing item directly in cache
           final existingRecord = TestRecord(

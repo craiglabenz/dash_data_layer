@@ -78,7 +78,9 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _incrementCounter() async {
     await _clickRepository.setItem(
       Click(delta: 1, clickedAt: DateTime.now()),
-      RequestDetails(ttl: _isExpiring ? const Duration(seconds: 5) : null),
+      details: RequestDetails(
+        ttl: _isExpiring ? const Duration(seconds: 5) : null,
+      ),
     );
     _refreshClicks();
   }
