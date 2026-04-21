@@ -305,7 +305,7 @@ Critically, this cached data is tied to the exact request that yielded it. If yo
 ```dart
 /// Not a cache hit - will once again request data from the server
 final activeUsers = await userRepository.getItems(
-  RequestDetails(filter: ActiveUsersFilter(), pagination: Pagination.page(1)),
+  details: RequestDetails(filter: ActiveUsersFilter(), pagination: Pagination.page(1)),
 );
 ```
 
@@ -328,7 +328,7 @@ However, local sources are request-based and cannot know which requests would yi
 ```dart
 /// Will contain the "John Doe" user
 final allUsers = await userRepository.getItems(
-  RequestDetails(requestType: .allLocal),
+  details: RequestDetails(requestType: .allLocal),
 );
 ```
 
@@ -341,7 +341,7 @@ It is the job of your state management solution to track this and determine whic
 /// sources, leading to "John Doe"'s inclusion in this request's cache if the
 /// server returns it in its response.
 final activeUsers = await userRepository.getItems(
-  RequestDetails(
+  details: RequestDetails(
     filter: ActiveUsersFilter(),
     pagination: Pagination.page(1),
     requestType: .refresh,
@@ -627,7 +627,7 @@ To force a cache miss, use `.refresh` for the `RequestType` parameter.
 ```dart
 /// Loads all users created within the last 7 days
 final users = await userRepository.getItems(
-  RequestDetails(
+  details: RequestDetails(
     requestType: .refresh,
     filter: CreatedWithin(const Duration(days: 7)),
   ),
@@ -642,7 +642,7 @@ Any records previously cached against this request will not be deleted, but they
 /// Will return the same users from the cache that were returned in the prior call
 final users = await userRepository.getItems(
   // The default `RequestType` value is `.global`, which loads data from anywhere
-  RequestDetails(
+  details: RequestDetails(
     // [CreatedWithin] is a hypothetical filter class that you write.
     filter: CreatedWithin(const Duration(days: 7)),
   ),
@@ -666,7 +666,7 @@ Consider the following situation. First, you fetch a list of records from the se
 ```dart
 // Reads data from the server (assuming no cache hits), loading [User1] and [User2]
 final users = await userRepository.getItems(
-  RequestDetails(filter: MyFilter()),
+  details: RequestDetails(filter: MyFilter()),
 );
 /// Users == [User1, User2]
 ```
@@ -676,7 +676,7 @@ At this point, your `UserRepository` will have cached `User1` and `User2` to any
 ```dart
 /// Forces a local cache miss and repeats the same request from before; this time returning only [User2]
 final users = await userRepository.getItems(
-  RequestDetails(requestType: .refresh, filter: MyFilter()),
+  details: RequestDetails(requestType: .refresh, filter: MyFilter()),
 );
 /// Users == [User2]
 ```
@@ -686,7 +686,7 @@ However, this time, only `User2` was returned. What would you expect from the fo
 ```dart
 /// My default, all sources attempt to satisfy requests from local sources first; and since data definitely exists locally for `MyFilter()`, no request will be sent to the server.
 final users = await userRepository.getItems(
-  RequestDetails(filter: MyFilter()),
+  details: RequestDetails(filter: MyFilter()),
 );
 ```
 
@@ -697,7 +697,7 @@ Should `users` contain both [User1] and [User2], or just [User2]? `pkg:data_laye
 ```dart
 // [.allLocal] reads all locally available data, regardless of request, and makes no request to the server.
 final users = await userRepository.getItems(
-  RequestDetails(requestType: .allLocal, filter: MyFilter()),
+  details: RequestDetails(requestType: .allLocal, filter: MyFilter()),
 );
 /// Users only contains [User2]
 ```
