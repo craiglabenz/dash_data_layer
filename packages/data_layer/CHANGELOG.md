@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.6
+
+- Adds `MessageRepository` for DTO pattern.
+
 ## 0.0.5
 
 - Adds `forceInsert` to `RequestDetails` and `Operation`.

@@ -29,6 +29,10 @@ Additionally, three streaming equivalents of the read methods exist:
 * `watchList` - Streams updates to the set of items which satisfy the given request.
 * `watchByIds` - Streams updates to a list of items by their Ids.
 
+Additionally, a single method exists for DTOs:
+
+* `sendMessage` - Uses a different dataclass for writes while still expecting to return the primary object type.
+
 The primary class from `pkg:data_layer` which the rest of your app will encounter is `Repository`, which defaults to defining handlers for all of the above methods, but may decide to define only a subset if appropriate for a given use case. (For example, a read-only data endpoint may throw `UnimplementedError` exceptions for `setItem`, `setItems`, and `deleteItem`.)
 
 Within a `Repository` is the all-important `SourceList`, which manages juggling data between an arbitrary list of `Source` objects. The `SourceList` class is the core of `pkg:data_layer`. You should not need to subclass or alter its behavior, as any special behavior should be coded into the `Repository` or `Source` layers.
@@ -46,6 +50,7 @@ Understanding the `SourceList` is key to understanding `pkg:data_layer`. See the
 - [Data layer principles](#data-layer-principles)
 - [Creating a Repository](#creating-a-repository)
 - [Instantiating a Repository](#instantiating-a-repository)
+- [Instantiating a MessageRepository](#instantiating-a-message-repository)
 - [Understanding the SourceList](#understanding-the-sourcelist)
 - [Defining data bindings](#defining-data-bindings)
 - [Loading data](#loading-data)
@@ -158,6 +163,86 @@ final userRepository = UserRepository(
 ```
 
 For more information on `DefaultRetryPolicy`, see [Retrying operations](#retrying-operations).
+
+## Instantiating a MessageRepository
+
+To use DTOs, you will need to use a `MessageRepository` instead of a `Repository`. The `MessageRepository` class is a subclass of `Repository` which adds a second generic type as well as the `sendMessage` method.
+
+```dart
+final messageRepository = MessageRepository<BlogPost, BlogPostDTO>(
+  SourceList<BlogPost>(
+    bindings: blogPostBindings,
+    sources: [
+      LocalSource<BlogPost>(bindings: blogPostBindings),
+      RestSource<BlogPost>(
+        bindings: blogPostBindings,
+        getListUrl: () => ApiUrl(path: '/blog_posts'),
+        getDetailUrl: (id) => ApiUrl(path: '/blog_posts/$id'),
+        restApi: restClient,
+      ),
+    ],
+  ),
+);
+```
+
+It is recommended that your DTO class be a sealed union. You can implement this pattern yourself, or use `pkg:freezed` to generate one for you:
+
+```dart
+/// Class to represent fully-formed instances of the `BlogPost` data type which
+/// have already been saved to the database and thus have all of their server-assigned
+/// values in place.
+@freezed
+abstract class BlogPost with _$BlogPost {
+  const factory BlogPost({
+    required String id,
+    required String title,
+    required String body,
+    required String authorId,
+    required DateTime createdAt,
+  }) = _BlogPost;
+
+  factory BlogPost.fromJson(Map<String, dynamic> json) =>
+      _$BlogPostFromJson(json);
+}
+
+
+/// Class to represent partial instances of the `BlogPost` data type which
+/// have either not yet been saved or are indicators of targeted updates.
+@freezed
+sealed class BlogPostDTO with _$BlogPostDTO {
+  // Only accepts fields the client controls
+  const factory BlogPostDTO.create({
+    required String title,
+    required String body,
+    required String authorId,
+  }) = CreateBlogPost;
+
+  // Only accepts fields the client can modify.
+  const factory BlogPostDTO.update({
+    String? title,
+    String? body,
+  }) = UpdateBlogPost;
+
+  factory BlogPostDTO.fromJson(Map<String, dynamic> json) =>
+      _$BlogPostDTOFromJson(json);
+}
+```
+
+Finally, perform special operations using the `sendMessage` method.
+
+```dart
+final savedBlogPost = messageRepository.sendMessage(
+  CreateBlogPost(
+    title: 'How to use the Data Layer package',
+    body: 'TODO: write blog post',
+  ),
+);
+
+final updatedBlogPost = await messageRepository.sendMessage(
+  UpdateBlogPost(body: '<lots of riveting documentation>'),
+  targetId: savedBlogPost.id,
+);
+```
 
 ## Understanding the SourceList
 
@@ -330,10 +415,10 @@ Filters and pagination can be used together.
 
 ### Local evaluation of filters
 
-This never happens. Filters are never applied to local data due to the risk of false-positives. If you make a filtered request to the server, any local `Source` objects will cache those records as belonging to those requests. However, if you happen to have cached a few records which match a given filter, local evaluation of the filter would very likely not result in expected behavior. Consider the following:
+This never happens. Filters are never applied to local data due to the risk of false-positives. If you make a filtered request to the server, any local `Source` objects will cache those records as belonging to those requests. However, if you happen to have cached a few records which match a given filter, local evaluation of the filter would produce objects; but without going to the server, you wouldn't know how many other records exist which match that filter but which you are missing. Consider the following:
 
 ```dart
-/// Saves this new user to the server and caches it locally *by its Id*.
+/// Saves this new user to the server and caches it locally by its Id.
 final newUser = await UserRepository.setItem(User(isActive: true));
 
 /// Loads active users from the repository.
@@ -350,7 +435,9 @@ final newUser = await UserRepository.setItem(User(isActive: true));
 ///
 /// This represents why caching is request-based and why filters are never
 /// evaluated locally.
-final activeUsers = await userRepository.getItems(RequestDetails(filter: ActiveUsersFilter()));
+final activeUsers = await userRepository.getItems(
+  details: RequestDetails(filter: ActiveUsersFilter()),
+);
 ```
 
 The fact that filters are never applied locally has implications for fast-paced applications with highly time-sensitive data. In such cases, it is recommended to use `RequestType.refresh` to force a `SourceList` to skip reading any local sources and instead go straight back to your remote sources.
@@ -359,31 +446,43 @@ Consider the following scenario:
 
 ```dart
 final messages = await messageRepository.getItems(
-  RequestDetails(filters: MessagesSentInLast(Duration(seconds: 1))),
+  details: RequestDetails(
+    filter: MessagesSentInLast(Duration(seconds: 1)),
+  ),
 );
 
 // At this point, 1-second old messages are all cached locally. However, more than a second later, none of those messages should still belong to that dataset. However, the following request would still yield all of the stale "1-second old" messages:
 
 final staleMessages = await messageRepository.getItems(
-  RequestDetails(filters: MessagesSentInLast(Duration(seconds: 1))),
+  details: RequestDetails(
+   filter: MessagesSentInLast(Duration(seconds: 1)),
+  ),
 );
 ```
 
-Thus, for highly time sensitive data, is probably bet to use `RequestType.refresh` to force a `SourceList` to skip reading any local sources and instead go straight back to your remote sources.
+Thus, for highly time sensitive data, use `RequestType.refresh` to force a `SourceList` to skip reading any local sources and instead go straight back to your remote sources.
+
+```dart
+final staleMessages = await messageRepository.getItems(
+  details: RequestDetails(
+    requestType: .refresh,
+    filter: MessagesSentInLast(Duration(seconds: 1)),
+  ),
+);
+```
 
 ## Pagination
 
-Similar to filtering, pagination is handled by the `RestSource` and is applied to the request in `getItems`.
+Pagination follows the same principles as filtering.
 
 ```dart
 final details = RequestDetails(
-  requestType: .global,
   pagination: Pagination.page(1, pageSize: 10),
 );
 final users = await userRepository.getItems(details);
 ```
 
-It is the job of any remote `Source` to apply this pagination to its request in `getItems`. For example, the `RestSource` calls its pagination `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server will apply the pagination to any database queries it executes.
+It is the job of any remote `Source` to apply this pagination to its request in `getItems`. For example, the `RestSource` calls its pagination `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server is looking for those querystring values and will apply them to any database queries it executes.
 
 Filters and pagination can be used together.
 
@@ -499,7 +598,7 @@ To force a cache miss, use `.refresh` for the `RequestType` parameter.
 final users = await userRepository.getItems(
   RequestDetails(
     requestType: .refresh,
-    filters: CreatedWithin(const Duration(days: 7)),
+    filter: CreatedWithin(const Duration(days: 7)),
   ),
 );
 ```
@@ -514,7 +613,7 @@ final users = await userRepository.getItems(
   // The default `RequestType` value is `.global`, which loads data from anywhere
   RequestDetails(
     // [CreatedWithin] is a hypothetical filter class that you write.
-    filters: CreatedWithin(const Duration(days: 7)),
+    filter: CreatedWithin(const Duration(days: 7)),
   ),
 );
 ```
@@ -536,7 +635,7 @@ Consider the following situation. First, you fetch a list of records from the se
 ```dart
 // Reads data from the server (assuming no cache hits), loading [User1] and [User2]
 final users = await userRepository.getItems(
-  RequestDetails(filters: MyFilter()),
+  RequestDetails(filter: MyFilter()),
 );
 /// Users == [User1, User2]
 ```
@@ -546,7 +645,7 @@ At this point, your `UserRepository` will have cached `User1` and `User2` to any
 ```dart
 /// Forces a local cache miss and repeats the same request from before; this time returning only [User2]
 final users = await userRepository.getItems(
-  RequestDetails(requestType: .refresh, filters: MyFilter()),
+  RequestDetails(requestType: .refresh, filter: MyFilter()),
 );
 /// Users == [User2]
 ```
@@ -556,7 +655,7 @@ However, this time, only `User2` was returned. What would you expect from the fo
 ```dart
 /// My default, all sources attempt to satisfy requests from local sources first; and since data definitely exists locally for `MyFilter()`, no request will be sent to the server.
 final users = await userRepository.getItems(
-  RequestDetails(filters: MyFilter()),
+  RequestDetails(filter: MyFilter()),
 );
 ```
 
@@ -567,7 +666,7 @@ Should `users` contain both [User1] and [User2], or just [User2]? `pkg:data_laye
 ```dart
 // [.allLocal] reads all locally available data, regardless of request, and makes no request to the server.
 final users = await userRepository.getItems(
-  RequestDetails(requestType: .allLocal, filters: MyFilter()),
+  RequestDetails(requestType: .allLocal, filter: MyFilter()),
 );
 /// Users only contains [User2]
 ```
@@ -619,7 +718,7 @@ A `LocalSource` stores data on the device. The inner design of a `LocalSource` o
 
 > Note: This is why `LocalMemorySource` is provided - it implements all of the required interfaces for you. The same is true for `HiveSource` out of `pkg:data_layer_hive`.
 
-`LocalSource` objects divide their persistence into three components: `itemsCache`, `requestCache`, and `paginatedRequestCache`. The `itemsCache` is responsible for storing the actual data, while the `requestCache` is responsible for storing metadata about the requests that were made. The `paginatedRequestCache` is responsible for storing metadata about the paginated requests that were made.
+`LocalSource` objects divide their persistence into three components: `itemsCache`, `requestCache`, and `paginatedRequestCache`. The `itemsCache` is responsible for storing the actual data, while the `requestCache` is responsible for storing metadata about which items belong to which requests. The `paginatedRequestCache` is responsible for storing metadata about any paginated requests that were made.
 
 Additionally, two of these three cache objects are themselves a layered caching mechanism to invisibly honor the `ttl` (time to live) values that you specify when writing data. This prevents new `LocalSource` implementations from having to reimplement this same logic.
 
@@ -639,6 +738,10 @@ To create a persistent local source (e.g., using Hive or SQLite), you need to im
 
 ```dart
 class HiveCache<T> extends SourceCache<T> {
+  const HiveCache(this.boxName);
+
+  final String boxName;
+
   // Implement methods to store/retrieve Users from Hive
 }
 
@@ -646,15 +749,26 @@ class HiveCache<T> extends SourceCache<T> {
 // persistence engines.
 final hiveSource = LocalSource<User>(
   itemsCache: ExpiringCache<User>(
-    cache: HiveCache<User>(),
-    cacheExpiryTimes: HiveCache<DateTime>(),
+    cache: HiveCache<User>('users_items'),
+    cacheExpiryTimes: HiveCache<DateTime>('users_items_expiry'),
   ),
   requestCache: ExpiringCache<Set<String>>(
-    cache: HiveCache<Set<String>>(),
-    cacheExpiryTimes: HiveCache<DateTime>(),
+    cache: HiveCache<Set<String>>('users_requests'),
+    cacheExpiryTimes: HiveCache<DateTime>('users_requests_expiry'),
   ),
-  paginatedRequestCache: HiveCache<Set<String>>(),
+  paginatedRequestCache: HiveCache<Set<String>>('users_paginated_requests'),
   bindings: userBindings,
+);
+```
+
+Or, you can use the convenience `.builders` factory constructor on `LocalSource`:
+
+```dart
+final hiveSource = LocalSource<User>.builders(
+  itemCache: (name) => HiveCache<User>('users_$name'),
+  stringSetCache: (name) => HiveCache<Set<String>>('users_$name'),
+  dateTimeCache: (name) => HiveCache<DateTime>('users_$name'),
+  bindings: User.bindings,
 );
 ```
 
@@ -692,3 +806,5 @@ class MyCustomApiSource extends Source<User> {
   /// Override more methods...
 }
 ```
+
+For a Cloud Firestore-specific implementation, see `pkg:data_layer_firestore` and its `FirestoreSource`.

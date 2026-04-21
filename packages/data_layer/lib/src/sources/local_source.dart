@@ -30,6 +30,8 @@ class LocalSource<T> extends Source<T> {
     required SourceCache<T> Function(String name) itemCache,
     required SourceCache<Set<String>> Function(String name) stringSetCache,
     required SourceCache<DateTime> Function(String name) dateTimeCache,
+    Bindings<T>? bindings,
+    Duration? ttl,
   }) => LocalSource(
     itemsCache: ExpiringCache<T>(
       cache: itemCache('items'),
@@ -40,6 +42,8 @@ class LocalSource<T> extends Source<T> {
       cacheExpiryTimes: dateTimeCache('requests_expiry'),
     ),
     paginatedRequestCache: stringSetCache('paginated_requests'),
+    bindings: bindings,
+    ttl: ttl,
   );
 
   final _log = Logger('$LocalSource<$T>');
