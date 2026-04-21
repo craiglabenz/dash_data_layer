@@ -35,7 +35,7 @@ A remote source which fails to do either of these jobs will result in undefined 
   }
 ```
 
-For SDKs that behave sufficiently differently from REST-based APIs, consider requiring a new method, like the `FirestoreSource`'s required `FirestoreFilter.apply` method out of the `pkg:data_layer_firebase` package, which accepts a Firestore `Query` object, calls any filter functions as necessary, and returns the modified query.
+For SDKs that behave sufficiently differently from REST-based APIs, consider requiring a new method, like the `FirestoreSource`'s required `FirestoreFilter.apply` method out of the `pkg:data_layer_firestore` package, which accepts a Firestore `Query` object, calls any filter functions as necessary, and returns the modified query.
 
 ### Writes
 

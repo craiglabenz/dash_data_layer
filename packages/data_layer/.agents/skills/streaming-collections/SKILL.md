@@ -14,4 +14,4 @@ final stream = userRepository.watchList(
 );
 ```
 
-It is the job of a your `WatchableSource` to negotiate how to fulfill this watch with your server. For a ready-to-go Firestore solution, see `pkg:data_layer_firebase`.
+It is the job of a your `WatchableSource` to negotiate how to fulfill this watch with your server. For a ready-to-go Firestore solution, see `pkg:data_layer_firestore`.
