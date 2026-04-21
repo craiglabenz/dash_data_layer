@@ -9,7 +9,6 @@ See [`pkg:data_layer`](https://pub.dev/packages/data_layer) for more information
 # Index
 
 - [Getting Started](#getting-started)
-- [Creating a HiveSource](#creating-a-hivesource)
 
 ## Getting started
 
@@ -18,8 +17,8 @@ Add the following to your `pubspec.yaml`:
 ```yaml
 dependencies:
   connectivity_plus: latest
-  data_layer: ^0.0.2-rc.1
-  data_layer_flutter: ^0.0.2-rc.1
+  data_layer: ^0.0.6
+  data_layer_flutter: ^0.0.2
 ```
 
 ## Creating a SourceList with Connectivity awareness
@@ -34,5 +33,6 @@ SourceList(
     ...
   ],
 )
+```
 
 

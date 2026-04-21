@@ -413,6 +413,31 @@ It is the job of any remote `Source` to apply this filter to its request in `get
 
 Filters and pagination can be used together.
 
+### Defining a Filter
+
+Filters must also produce a deterministic hash value (`Object.hash` or an unmodified `filter.hashCode` are not suitable!) to contribute to Data Layer's request-based caching system. When a filter's parameters are dynamic, that must be deterministically reflected in its `cacheKey`.
+
+```dart
+class UserFilter extends Filter {
+  @override
+  CacheKey get cacheKey => 'userfilter';
+
+  @override
+  Json toJson() => {'isActive': true};
+}
+
+class AuthoredByFilter extends Filter {
+  AuthoredByFilter(this.user);
+  final User user;
+
+  @override
+  CacheKey get cacheKey => 'authored-by-${user.id}';
+
+  @override
+  Json toJson() => {'authoredBy': user.id};
+}
+```
+
 ### Local evaluation of filters
 
 This never happens. Filters are never applied to local data due to the risk of false-positives. If you make a filtered request to the server, any local `Source` objects will cache those records as belonging to those requests. However, if you happen to have cached a few records which match a given filter, local evaluation of the filter would produce objects; but without going to the server, you wouldn't know how many other records exist which match that filter but which you are missing. Consider the following:
@@ -485,6 +510,12 @@ final users = await userRepository.getItems(details);
 It is the job of any remote `Source` to apply this pagination to its request in `getItems`. For example, the `RestSource` calls its pagination `toParams` function (which defaults to calling `toJson`) and then applies those parameters to the querystring of the request. Naturally, it is assumed that the remote server is looking for those querystring values and will apply them to any database queries it executes.
 
 Filters and pagination can be used together.
+
+### Page vs Cursor-based pagination
+
+Page-based pagination, or pure limit-offset pagination, can be activated by using the `Pagination.page()` convenience constructor.
+Cursor-based pagination, or "start from here" pagination, can be activated by using the `Pagination.cursor()` convenience constructor.
+In both scenarios, it is up to the remote Source to correctly apply this to the network request.
 
 ## Streaming data
 
@@ -808,3 +839,21 @@ class MyCustomApiSource extends Source<User> {
 ```
 
 For a Cloud Firestore-specific implementation, see `pkg:data_layer_firestore` and its `FirestoreSource`.
+
+## Creating a Proxy Source
+
+Proxy Sources offer a build-a-bear type solution for irregular or JSON RPC APIs.
+
+```dart
+final source = ProxySource<User>(
+  sourceType: SourceType.remote,
+  bindings: userBindings,
+  setItemHandler: (WriteOperation<User> op) async {
+    // save [op.item], which is the User
+  },
+);
+```
+
+### Why / when to use a ProxySource
+
+Sufficiently consistent REST APIs can be highly automated by a single `RestSource`. Conversely, APIs which preserve end-to-end type safety, like Serverpod, cannot be implemented as a single remote source for all data types. For APIs like Serverpod, reach for a ProxySource.

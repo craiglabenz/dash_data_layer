@@ -13,7 +13,10 @@ Seamlessly plug Cloud Firestore into your Flutter apps' `data_layer` repositorie
 - [Motivation](#motivation)
 - [Architecture](#architecture)
 - [Getting Started](#getting-started)
-- [Creating a HiveSource](#creating-a-hivesource)
+
+## Architecture
+
+`pkg:data_layer_firestore` provides a `FirestoreSource` class which implements the `WatchableSource` interface to seamlessly integrate Cloud Firestore into your `data_layer` ecosystem. This source handles all necessary translation between `data_layer`'s request details and Firestore's querying syntax, while also supporting real-time data streaming.
 
 ## Getting started
 
