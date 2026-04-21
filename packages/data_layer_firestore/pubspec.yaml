@@ -9,7 +9,7 @@ environment:
 
 dependencies:
   cloud_firestore: 6.3.0
-  data_layer: ^0.0.5
+  data_layer: ^0.0.6
   firebase_core: 4.7.0
   flutter:
     sdk: flutter
@@ -22,6 +22,6 @@ dev_dependencies:
   mocktail: ^1.0.4
   very_good_analysis: ^10.0.0
 
-dependency_overrides:
-  data_layer: 
-    path: ../data_layer
+# dependency_overrides:
+#   data_layer: 
+#     path: ../data_layer
