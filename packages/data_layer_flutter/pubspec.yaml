@@ -14,7 +14,7 @@ environment:
 
 dependencies:
   connectivity_plus: ^7.0.0
-  data_layer: ^0.0.2-rc.1
+  data_layer: ^0.0.6
   flutter:
     sdk: flutter
 
