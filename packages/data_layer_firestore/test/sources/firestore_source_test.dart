@@ -291,4 +291,91 @@ void main() {
       });
     });
   });
+
+  group('cleanDataForWrite', () {
+    test('converts root-level DateTimes to Timestamps', () {
+      final dateTime = DateTime.utc(2024);
+      final data = {
+        'name': 'Test',
+        'createdAt': dateTime,
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned['createdAt'], isA<Timestamp>());
+      expect(
+        (cleaned['createdAt']! as Timestamp).toDate(),
+        equals(dateTime.toLocal()),
+      );
+    });
+
+    test('converts ISO 8601 string DateTimes to Timestamps', () {
+      final dateTime = DateTime.utc(2024);
+      final data = {
+        'name': 'Test',
+        'createdAt': dateTime.toIso8601String(),
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned['createdAt'], isA<Timestamp>());
+      expect(
+        (cleaned['createdAt']! as Timestamp).toDate(),
+        equals(dateTime.toLocal()),
+      );
+    });
+
+    test('converts nested DateTimes in Maps', () {
+      final dateTime = DateTime.utc(2024);
+      final data = {
+        'name': 'Test',
+        'metadata': {
+          'updatedAt': dateTime,
+        },
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect((cleaned['metadata']! as Map)['updatedAt'], isA<Timestamp>());
+      expect(
+        ((cleaned['metadata']! as Map)['updatedAt'] as Timestamp).toDate(),
+        equals(dateTime.toLocal()),
+      );
+    });
+
+    test('converts nested DateTimes in Lists', () {
+      final dateTime = DateTime.utc(2024);
+      final data = {
+        'name': 'Test',
+        'history': [
+          {'at': dateTime},
+        ],
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(
+        ((cleaned['history']! as List).first as Map)['at'],
+        isA<Timestamp>(),
+      );
+      expect(
+        (((cleaned['history']! as List).first as Map)['at'] as Timestamp)
+            .toDate(),
+        equals(dateTime.toLocal()),
+      );
+    });
+
+    test('handles lists with non-Map items', () {
+      final data = {
+        'name': 'Test',
+        'tags': ['a', 'b'],
+        'createdAt': DateTime.now(),
+      };
+      expect(() => FirestoreSource.cleanDataForWrite(data), returnsNormally);
+    });
+
+    test('returns same object if empty', () {
+      final data = <String, dynamic>{};
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned, same(data));
+    });
+
+    test('returns same object if no DateTimes found', () {
+      final data = {'name': 'Test', 'count': 1};
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned, same(data));
+    });
+  });
 }

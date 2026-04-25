@@ -309,6 +309,60 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
     return value;
   }
 
+  /// Converts Dart [DateTime]s into Firebase [Timestamp] values.
+  static Json cleanDataForWrite(Json data) {
+    if (data.isEmpty) {
+      return data;
+    }
+
+    Json? cleaned;
+
+    for (final entry in data.entries) {
+      final value = entry.value;
+      final cleanedValue = _cleanValueForWrite(value);
+
+      if (!identical(cleanedValue, value)) {
+        cleaned ??= Map<String, dynamic>.from(data);
+        cleaned[entry.key] = cleanedValue;
+      }
+    }
+
+    return cleaned ?? data;
+  }
+
+  static Object? _cleanValueForWrite(Object? value) {
+    if (value is DateTime) {
+      return Timestamp.fromDate(value);
+    }
+    if (value is String) {
+      final iso8601Regex = RegExp(
+        r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z)?$',
+      );
+      if (iso8601Regex.hasMatch(value)) {
+        final parsed = DateTime.tryParse(value);
+        if (parsed != null) {
+          return Timestamp.fromDate(parsed);
+        }
+      }
+    }
+    if (value is Map<String, dynamic>) {
+      return cleanDataForWrite(value);
+    }
+    if (value is List) {
+      List<Object?>? newList;
+      for (var i = 0; i < value.length; i++) {
+        final item = value[i];
+        final cleanedItem = _cleanValueForWrite(item);
+        if (!identical(cleanedItem, item)) {
+          newList ??= List<Object?>.from(value);
+          newList[i] = cleanedItem;
+        }
+      }
+      return newList ?? value;
+    }
+    return value;
+  }
+
   Future<R> _guarded<R>(Future<R> Function() fn, Operation<T> operation) async {
     try {
       return await fn();
