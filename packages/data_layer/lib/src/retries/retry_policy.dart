@@ -11,11 +11,19 @@ abstract class RetryPolicy<T> {
   /// {@macro RetryPolicy}
   const RetryPolicy({
     required this.maxRetries,
+    this.maxWait,
   });
 
   /// Global maximum number of retries to attempt for any operation before
   /// abandoning the effort.
-  final int maxRetries;
+  ///
+  /// A null value indicates that a specific operation is quite important and
+  /// should be retried indefinitely.
+  final int? maxRetries;
+
+  /// If non-null, caps the wait time for an Operation's exponential backoff
+  /// retry.
+  final Duration? maxWait;
 
   /// Called by the [SourceList] when connectivity is reestablished. Should
   /// return all operations which failed due to connectivity issues, but not any
@@ -80,7 +88,8 @@ class DefaultRetryPolicy<T> extends RetryPolicy<T> {
   @override
   Stream<Operation<T>> onRetryOperation() => _retryController.stream;
 
-  /// Continues the bucket brigade of [Operation]s up to the [SourceList].
+  /// Continues the bucket brigade of passing [Operation]s up to the
+  /// [SourceList].
   void _retryOperation(Operation<T> operation) =>
       _retryController.add(operation);
 
@@ -116,8 +125,8 @@ class DefaultRetryPolicy<T> extends RetryPolicy<T> {
             : writesPersistence.save(operation));
       case .serverError:
         await (operation.isRead
-            ? readsPersistence.schedule(operation)
-            : writesPersistence.schedule(operation));
+            ? readsPersistence.schedule(operation, maxWait: maxWait)
+            : writesPersistence.schedule(operation, maxWait: maxWait));
       case .badRequest:
       // Do nothing
     }
@@ -129,7 +138,7 @@ class DefaultRetryPolicy<T> extends RetryPolicy<T> {
     if (!superShouldRetry) {
       return false;
     }
-    if (operation.attemptNumber >= maxRetries + 1) {
+    if (maxRetries != null && operation.attemptNumber >= maxRetries! + 1) {
       _log.fine('Abandoning $operation after $maxRetries retries');
       return false;
     }

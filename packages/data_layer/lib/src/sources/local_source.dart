@@ -25,6 +25,27 @@ class LocalSource<T> extends Source<T> {
        _requestCache = requestCache,
        _paginatedRequestCache = paginatedRequestCache;
 
+  /// Convenience constructor which assembles the inner caches for you.
+  static LocalSource<T> builders<T>({
+    required SourceCache<T> Function(String name) itemCache,
+    required SourceCache<Set<String>> Function(String name) stringSetCache,
+    required SourceCache<DateTime> Function(String name) dateTimeCache,
+    Bindings<T>? bindings,
+    Duration? ttl,
+  }) => LocalSource(
+    itemsCache: ExpiringCache<T>(
+      cache: itemCache('items'),
+      cacheExpiryTimes: dateTimeCache('items_expiry'),
+    ),
+    requestCache: ExpiringCache<Set<String>>(
+      cache: stringSetCache('requests'),
+      cacheExpiryTimes: dateTimeCache('requests_expiry'),
+    ),
+    paginatedRequestCache: stringSetCache('paginated_requests'),
+    bindings: bindings,
+    ttl: ttl,
+  );
+
   final _log = Logger('$LocalSource<$T>');
 
   /// Warehouse for all known instances of [T].
@@ -34,7 +55,8 @@ class LocalSource<T> extends Source<T> {
   final ExpiringCache<Set<String>> _requestCache;
 
   /// Warehouse for caching request metadata, both paginated and unpaginated.
-  /// Not an [ExpiringCache] because pages expire individually.
+  /// Not an [ExpiringCache] because pages expire individually, which is all
+  /// stored in the `requestCache`.
   final SourceCache<Set<String>> _paginatedRequestCache;
 
   /// Duration after which the data should be considered stale. Stale data will
@@ -272,5 +294,19 @@ class LocalSource<T> extends Source<T> {
     );
     await deleteIds({operation.itemId});
     return DeleteSuccess<T>(operation.details);
+  }
+
+  @override
+  Future<WriteResult<T>> sendMessage(
+    SendMessageOperation<T> operation,
+  ) async {
+    // Local memory caches cannot handle message creation without IDs reliably
+    // and take zero special actions while the update is pending locally.
+    // The remote server will handle the modification, and it will be
+    // automatically cached via write-through upon completion.
+    return WriteFailure<T>(
+      FailureReason.badRequest,
+      'Local source defers to remote server for message sending.',
+    );
   }
 }

@@ -46,11 +46,9 @@ class TestModel {
 
   static final bindings = CreationBindings<TestModel>(
     fromJson: TestModel.fromJson,
-    getDetailUrl: (id) => ApiUrl(path: 'test/$id'),
-    getListUrl: () => const ApiUrl(path: 'test/'),
     toJson: (obj) => obj.toJson(),
     getId: (obj) => obj.id,
-    save: (obj) => obj.copyWith(id: 'new'),
+    save: (obj) => obj.copyWith(id: 'new'), // copied from Hive one to unify
   );
 }
 

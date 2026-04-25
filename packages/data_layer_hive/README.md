@@ -12,6 +12,11 @@ On-device caching is complicated. While some reach for SQL in the form of sqlite
 
 - [Motivation](#motivation)
 - [Architecture](#architecture)
+
+## Architecture
+
+`pkg:data_layer_hive` provides a `HiveSource` class which implements the `Source` interface specifically for caching data using `pkg:hive_ce`. This allows your `Repository` objects to persist data durably across application launches.
+
 - [Getting Started](#getting-started)
 - [Creating a HiveSource](#creating-a-hivesource)
 
@@ -43,10 +48,12 @@ SourceList(
   ...
   sources: [
     HiveSource(
+      bindings: userBindings,
+      boxName: 'users_box',
       // You probably want to call this code elsewhere and capture its Future
       // for reuse across multiple `HiveSource` instances.
       hiveInit: Hive.initFlutter().then((_) => Hive.registerAdapters()),
-    ApiSource(...),
+    RestSource(...),
   ],
 )
 

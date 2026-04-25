@@ -3,24 +3,40 @@ import 'dart:async';
 import 'package:data_layer/data_layer.dart';
 import 'package:logging/logging.dart';
 
-/// {@template ApiSource}
+/// {@template RestSource}
 /// Subtype of [Source] which knows how to make network requests to load data.
 /// {@endtemplate}
-class ApiSource<T> extends Source<T> {
-  /// {@macro ApiSource}
-  ApiSource({
+class RestSource<T> extends Source<T> {
+  /// {@macro RestSource}
+  RestSource({
     required RestApi restApi,
+    required this.getListUrl,
+    required this.getDetailUrl,
+    ApiUrl Function()? getCreateUrl,
     this.logLevel = Level.OFF,
     this.resultsKey = 'results',
     super.bindings,
     ITimer? timer,
   }) : api = restApi,
+       _getCreateUrl = getCreateUrl,
        idsCurrentlyBeingFetched = <String>{},
        loadedItems = {},
        timer = timer ?? RealTimer(),
        queuedIds = <String>{};
 
-  final _log = Logger('ApiSource<$T>');
+  final _log = Logger('RestSource<$T>');
+
+  /// Builder for list [ApiUrl] instances for this data type.
+  final ApiUrl Function() getListUrl;
+
+  /// Builder for detail [ApiUrl] instances for this data type.
+  final ApiUrl Function(String id) getDetailUrl;
+
+  final ApiUrl Function()? _getCreateUrl;
+
+  /// Overrideable method which returns the creation Url for this data type. By
+  /// default, this proxies to [getListUrl].
+  ApiUrl getCreateUrl() => _getCreateUrl?.call() ?? getListUrl();
 
   /// Utility able to send network requests.
   final RestApi api;
@@ -78,7 +94,7 @@ class ApiSource<T> extends Source<T> {
   Future<ReadListResult<T>> getItems(ReadListOperation<T> operation) async {
     final Params params = <String, String>{};
 
-    // Add all specified filters as query parameters
+    // Add a specified filter as query parameters
     if (operation.details.filter != null) {
       params.addAll(operation.details.filter!.toParams());
     }
@@ -207,7 +223,7 @@ class ApiSource<T> extends Source<T> {
   /// Submits a network request for data.
   Future<ApiResult> fetchItems(Params? params) async {
     final request = ReadApiRequest(
-      url: bindings.getListUrl(),
+      url: getListUrl(),
       params: params,
     );
     return api.get(request);
@@ -215,19 +231,19 @@ class ApiSource<T> extends Source<T> {
 
   @override
   Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
+    final isInserting =
+        bindings.getId(operation.item) == null || operation.details.forceInsert;
     final request = WriteApiRequest(
-      url: bindings.getId(operation.item) == null
-          ? bindings.getCreateUrl()
-          : bindings.getDetailUrl(bindings.getId(operation.item)!),
+      url: isInserting
+          ? getCreateUrl()
+          : getDetailUrl(bindings.getId(operation.item)!),
       body: bindings.toJson(operation.item),
     );
 
-    final result =
-        await (bindings.getId(operation.item) ==
-                null //
-            ? api.post(request)
-            : api.update(request) //
-              );
+    final result = await (isInserting
+        ? api.post(request)
+        : api.update(request) //
+          );
 
     switch (result) {
       case ApiSuccess():
@@ -251,12 +267,15 @@ class ApiSource<T> extends Source<T> {
     WriteListOperation<T> operation,
   ) =>
       // TODO(craiglabenz): Could this have a default implementation?
-      throw Exception('Should never call ApiSource.setItems');
+      throw Exception(
+        'RestSource.setItems is undefined, as your desired behavior is too '
+        'unpredictable to be offered by pkg:data_layer directly.',
+      );
 
   @override
   Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
     final request = WriteApiRequest(
-      url: bindings.getDetailUrl(operation.itemId),
+      url: getDetailUrl(operation.itemId),
       body: null,
     );
     final result = await api.delete(request);
@@ -264,6 +283,44 @@ class ApiSource<T> extends Source<T> {
       ApiSuccess() => DeleteSuccess(operation.details),
       ApiError() => DeleteResult.fromApiError(result),
     };
+  }
+
+  @override
+  Future<WriteResult<T>> sendMessage(
+    SendMessageOperation<T> operation,
+  ) async {
+    if (operation.message is! MessagePayload) {
+      return WriteFailure<T>(
+        FailureReason.badRequest,
+        'Message must be wrapped in MessagePayload',
+      );
+    }
+    final payload = operation.message as MessagePayload;
+    final isInserting =
+        operation.targetId == null || operation.details.forceInsert;
+
+    final request = WriteApiRequest(
+      url: isInserting ? getCreateUrl() : getDetailUrl(operation.targetId!),
+      body: payload.toJson(),
+    );
+
+    final result = await (isInserting
+        ? api.post(request)
+        : api.update(request));
+
+    switch (result) {
+      case ApiSuccess():
+        final responseItem = hydrateItemResponse(result);
+        if (responseItem == null) {
+          return WriteFailure<T>(
+            FailureReason.serverError,
+            'Failed to parse sent message response',
+          );
+        }
+        return WriteSuccess<T>(responseItem, details: operation.details);
+      case ApiError():
+        return WriteResult.fromApiError(result);
+    }
   }
 
   /// Overrideable hook to extract the raw item payloads out of the response

@@ -9,7 +9,11 @@ class ClickRepository extends Repository<Click> {
           bindings: Click.bindings,
           sources: [
             LocalMemorySource<Click>(bindings: Click.bindings),
-            HiveSource<Click>(bindings: Click.bindings, hiveInit: hiveInit),
+            HiveSource<Click>(
+              bindings: Click.bindings,
+              hiveInit: hiveInit,
+              boxName: 'clicks',
+            ),
           ],
         ),
       );

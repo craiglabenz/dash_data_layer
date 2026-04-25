@@ -124,6 +124,11 @@ class CountingWatchableSource extends Source<TestModel>
   Future<WriteListResult<TestModel>> setItems(
     WriteListOperation<TestModel> operation,
   ) async => throw UnimplementedError();
+
+  @override
+  Future<WriteResult<TestModel>> sendMessage(
+    SendMessageOperation<TestModel> operation,
+  ) => throw UnimplementedError();
 }
 
 void main() {

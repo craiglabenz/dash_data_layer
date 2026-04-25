@@ -89,19 +89,24 @@ class HiveOperationsPersistence<T>
   }
 
   @override
-  Future<void> schedule(Operation<T> operation) async {
+  Future<void> schedule(Operation<T> operation, {Duration? maxWait}) async {
     await ready;
     await _scheduledBox.put(
       operation.operationId,
       operation.toJson(bindings.toJson),
     );
-    _scheduleInternal(operation);
+    _scheduleInternal(operation, maxWait: maxWait);
   }
 
-  void _scheduleInternal(Operation<T> operation) {
+  void _scheduleInternal(Operation<T> operation, {Duration? maxWait}) {
+    Duration wait = Duration(seconds: pow(2, operation.attemptNumber).toInt());
+    if (maxWait != null && maxWait.inSeconds < wait.inSeconds) {
+      wait = maxWait;
+    }
+
     _retryTimers.add(
       scheduler.schedule(
-        Duration(seconds: pow(2, operation.attemptNumber).toInt()),
+        wait,
         () async {
           _streamController.add(operation.retry());
           await _scheduledBox.delete(operation.operationId);

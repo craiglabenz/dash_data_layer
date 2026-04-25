@@ -10,14 +10,16 @@ const respHeaders = <String, String>{
   HttpHeaders.contentTypeHeader: 'application/json',
 };
 
-ApiSource<TestModel> getSrc({
+RestSource<TestModel> getSrc({
   ReadHandler? readHandler,
   WriteRequestHandler? postHandler,
   ITimer? timer,
   String? resultsKey = 'results',
-}) => ApiSource<TestModel>(
+}) => RestSource<TestModel>(
   resultsKey: resultsKey,
   bindings: TestModel.bindings,
+  getDetailUrl: (id) => ApiUrl(path: 'test/$id'),
+  getListUrl: () => const ApiUrl(path: 'test/'),
   restApi: RestApi(
     apiBaseUrl: 'https://fake.com/',
     delegate: RequestDelegate.fake(
@@ -33,11 +35,11 @@ ApiSource<TestModel> getSrc({
 );
 
 void main() {
-  group('ApiSource.getById should', () {
+  group('RestSource.getById should', () {
     test(
       'make a GET request and process its response',
       () async {
-        final ApiSource<TestModel> src = getSrc(
+        final RestSource<TestModel> src = getSrc(
           readHandler: (url, {headers}) async {
             return http.Response(
               jsonEncode({
@@ -61,7 +63,7 @@ void main() {
     test(
       'make a GET request and process its response without results key',
       () async {
-        final ApiSource<TestModel> src = getSrc(
+        final RestSource<TestModel> src = getSrc(
           resultsKey: null,
           readHandler: (url, {headers}) async {
             return http.Response(
@@ -86,7 +88,7 @@ void main() {
     test(
       'work with a real timer',
       () async {
-        final ApiSource<TestModel> src = getSrc(
+        final RestSource<TestModel> src = getSrc(
           resultsKey: null,
           readHandler: (url, {headers}) async {
             return http.Response(
@@ -112,7 +114,7 @@ void main() {
     test(
       'return null from a 404',
       () async {
-        final ApiSource<TestModel> src = getSrc(
+        final RestSource<TestModel> src = getSrc(
           readHandler: (url, {headers}) async {
             return http.Response(
               'Not found',
@@ -129,9 +131,9 @@ void main() {
     );
   });
 
-  group('ApiSource.getByIds should', () {
+  group('RestSource.getByIds should', () {
     test('make a GET request and process its response', () async {
-      final ApiSource<TestModel> src = getSrc(
+      final RestSource<TestModel> src = getSrc(
         readHandler: (url, {headers}) async {
           return http.Response(
             jsonEncode(
@@ -159,7 +161,7 @@ void main() {
     test(
       'make a GET request and process its response without results key',
       () async {
-        final ApiSource<TestModel> src = getSrc(
+        final RestSource<TestModel> src = getSrc(
           resultsKey: null,
           readHandler: (url, {headers}) async {
             return http.Response(
@@ -185,7 +187,7 @@ void main() {
     );
 
     test('handle partial responses', () async {
-      final ApiSource<TestModel> src = getSrc(
+      final RestSource<TestModel> src = getSrc(
         readHandler: (url, {headers}) async {
           return http.Response(
             jsonEncode(
@@ -211,7 +213,7 @@ void main() {
     });
 
     test('handle zero hits', () async {
-      final ApiSource<TestModel> src = getSrc(
+      final RestSource<TestModel> src = getSrc(
         readHandler: (url, {headers}) async {
           return http.Response(
             jsonEncode({'results': <Object>[]}),
@@ -232,7 +234,7 @@ void main() {
     });
 
     test('handle a 404', () async {
-      final ApiSource<TestModel> src = getSrc(
+      final RestSource<TestModel> src = getSrc(
         readHandler: (url, {headers}) async {
           return http.Response(
             'Not found',

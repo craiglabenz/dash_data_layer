@@ -17,7 +17,7 @@ part 'operations.g.dart';
 sealed class Operation<T> with _$Operation<T> {
   const Operation._();
 
-  /// A single item read operation that failed.
+  /// A single item read operation.
   const factory Operation.getItem({
     required String operationId,
     required String itemId,
@@ -27,7 +27,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = ReadOperation;
 
-  /// A multi-item read operation that failed.
+  /// A multi-item read operation.
   const factory Operation.getItems({
     required String operationId,
     @RequestDetailsConverter() //
@@ -36,7 +36,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = ReadListOperation;
 
-  /// A multi-item read-by-ids operation that failed.
+  /// A multi-item read-by-ids operation.
   const factory Operation.getByIds({
     required String operationId,
     required Set<String> itemIds,
@@ -46,7 +46,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = ReadByIdsOperation;
 
-  /// A single item write operation that failed.
+  /// A single item write operation.
   const factory Operation.setItem({
     required String operationId,
     @RequestDetailsConverter() //
@@ -57,7 +57,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = WriteOperation;
 
-  /// A multi-item write operation that failed.
+  /// A multi-item write operation.
   const factory Operation.setItems({
     required String operationId,
     @RequestDetailsConverter() //
@@ -68,7 +68,7 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = WriteListOperation;
 
-  /// A single item delete operation that failed.
+  /// A single item delete operation.
   const factory Operation.delete({
     required String operationId,
     required String itemId,
@@ -78,6 +78,17 @@ sealed class Operation<T> with _$Operation<T> {
     required DateTime createdAt,
     @Default(0) int attemptNumber,
   }) = DeleteOperation;
+
+  /// A generic message operation for sending an object creation or update.
+  const factory Operation.sendMessage({
+    required String operationId,
+    required Object message,
+    @RequestDetailsConverter() //
+    required RequestDetails details,
+    required DateTime createdAt,
+    String? targetId,
+    @Default(0) int attemptNumber,
+  }) = SendMessageOperation;
 
   factory Operation.fromJson(
     Map<String, dynamic> json,
@@ -94,7 +105,8 @@ sealed class Operation<T> with _$Operation<T> {
     ReadByIdsOperation<T>() => true,
     WriteOperation<T>() ||
     WriteListOperation<T>() ||
-    DeleteOperation<T>() => false,
+    DeleteOperation<T>() ||
+    SendMessageOperation<T>() => false,
   };
 
   /// The cache key for this operation. This is used to deduplicate operations
@@ -143,6 +155,39 @@ sealed class Operation<T> with _$Operation<T> {
           rounds: 1,
           salt: 'read-ids-op',
         ).toString();
+      case SendMessageOperation<T>(
+        :final targetId,
+        :final message,
+        :final details,
+      ):
+        return Crypt.sha256(
+          '${targetId}_${message.hashCode}-${details.cacheKey}',
+          rounds: 1,
+          salt: 'send-message-op',
+        ).toString();
+    }
+  }
+
+  /// Detects invalid configurations to warn developers of possible mistakes.
+  void validate() {
+    final requestType = details.requestType;
+    if (isRead && details.forceInsert) {
+      throw StateError(
+        'Setting forceInsert to true for ReadOperations is invalid',
+      );
+    }
+    if (requestType == .allLocal && this is! ReadListOperation) {
+      throw StateError(
+        'RequestType.allLocal is only valid in getItems method. '
+        'Other methods are unlikely to honor this request, as its '
+        'behavior would be contradictory and undefined.',
+      );
+    }
+    if (requestType == .refresh && isWrite) {
+      throw StateError(
+        'Using a requestType of .allLocal or .refresh is invalid for '
+        'writes',
+      );
     }
   }
 

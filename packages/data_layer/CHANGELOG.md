@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.6+1
+
+- README tweaks. No functional difference from 0.0.6.
+
+## 0.0.6
+
+- Adds `MessageRepository` for DTO pattern.
+
 ## 0.0.5
 
 - Adds `forceInsert` to `RequestDetails` and `Operation`.

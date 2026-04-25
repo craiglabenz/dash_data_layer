@@ -1,6 +1,16 @@
 import 'package:data_layer/data_layer.dart';
 
 /// {@template SourceCache}
+/// Primary workhorse of any [LocalSource].
+///
+/// [SourceCache] objects are the actual bindings between [LocalSource] objects
+/// and a physical storage mechanism (be that local storage, a local database,
+/// or good old fashioned application memory).
+///
+/// Implementing a new [SourceCache] amounts to providing implementations for
+/// the 8 empty methods. Understanding the complex ways that a [LocalSource]
+/// coordinates between a fleet of [SourceCache] objects to sort out what data
+/// it has, and what of that is still fresh, is not necessary.
 /// {@endtemplate}
 abstract class SourceCache<T> {
   /// {@macro SourceCache}
@@ -34,6 +44,11 @@ abstract class SourceCache<T> {
 }
 
 /// {@template ExpiringCache}
+/// A flavor of [SourceCache] which juggles between two inner [SourceCache]
+/// objects to both store data and expiry dates.
+///
+/// Developers are not expected to extend [ExpiringCache], but instead
+/// instantiate it as-is with storage mechanism-specific [SourceCache] objects.
 /// {@endtemplate}
 class ExpiringCache<T> extends SourceCache<T> {
   /// {@macro ExpiringCache}

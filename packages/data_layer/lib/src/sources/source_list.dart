@@ -50,6 +50,10 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
         }
       });
     }
+    assert(() {
+      validate();
+      return true;
+    }(), 'SourceList has invalid definition.');
   }
 
   /// Testing-friendly constructor for wiring things up that don't actually
@@ -139,7 +143,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   /// Checks connectivity if a [ConnectivityService] is provided. If the device
-  /// is offline...
+  /// is offline, throws a [NoConnectivityException].
   ///
   /// A no-op if no [ConnectivityService] is provided.
   Future<void> checkConnectivity(RequestDetails details) async {
@@ -158,7 +162,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     final matchedSources = getSources(
       requestType: details.requestType,
       reversed: true,
-    ).where((s) => s.matched).map((s) => s.source).toList();
+    ).where((s) => s.matched).map((s) => s.source);
 
     for (final source in matchedSources) {
       if (source is WatchableSource<T>) {
@@ -167,8 +171,8 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     }
 
     throw StateError(
-      'Cannot call watch methods on a SourceList when none of its valid '
-      'sources are a WatchableSource.',
+      'Cannot call watch methods on a SourceList when none of its sources are '
+      'a valid WatchableSource.',
     );
   }
 
@@ -329,6 +333,13 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     Future<R> Function() fn,
     R Function() connectivityFailureBuilder,
   ) async {
+    assert(
+      () {
+        operation.validate();
+        return true;
+      }(),
+      '$operation has invalid configuration',
+    );
     if (retryPolicy == null) {
       return fn();
     }
@@ -430,12 +441,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   Future<ReadListResult<T>> _getByIds(ReadByIdsOperation<T> operation) async {
     operation.details.assertEmpty('SourceList<$T>.getByIds');
-
-    try {
-      await checkConnectivity(operation.details);
-    } on NoConnectivityException {
-      return ReadListFailure<T>(.connectivity, 'The device is offline.');
-    }
 
     final items = <String, T>{};
     final pastSources = <Source<T>>[];
@@ -590,12 +595,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   Future<WriteResult<T>> _setItem(WriteOperation<T> operation) async {
-    try {
-      await checkConnectivity(operation.details);
-    } on NoConnectivityException {
-      return WriteFailure<T>(.connectivity, 'The device is offline.');
-    }
-
     T itemCopy = operation.item;
     for (final ms in getSources(
       requestType: operation.details.requestType,
@@ -627,6 +626,60 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   @override
+  Future<WriteResult<T>> sendMessage(
+    SendMessageOperation<T> operation,
+  ) async {
+    return _guarded<WriteResult<T>>(
+      operation,
+      () => _sendMessage(operation),
+      () => WriteFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<WriteResult<T>> _sendMessage(
+    SendMessageOperation<T> operation,
+  ) async {
+    WriteResult<T>? finalResult;
+
+    final emptySources = getSources(requestType: operation.details.requestType)
+        .where((ms) => !ms.unmatched && ms.source is LocalSource)
+        .map((ms) => ms.source)
+        .toList();
+
+    for (final ms in getSources(
+      requestType: operation.details.requestType,
+      reversed: operation.targetId == null, // Hit API first if target is new
+    )) {
+      if (ms.unmatched || ms.source is LocalSource) continue;
+
+      final result = await ms.source.sendMessage(operation);
+      if (ms.source.sourceType == SourceType.remote) {
+        finalResult = result;
+      }
+    }
+
+    if (finalResult is WriteSuccess<T>) {
+      if (bindings.getId(finalResult.item) != null) {
+        await _cacheItem(
+          emptySources,
+          WriteOperation<T>(
+            operationId: operation.operationId,
+            details: operation.details,
+            item: finalResult.item,
+            createdAt: operation.createdAt,
+          ),
+        );
+      }
+    }
+
+    return finalResult ??
+        WriteFailure<T>(
+          FailureReason.serverError,
+          'No source successfully sent the message.',
+        );
+  }
+
+  @override
   Future<WriteListResult<T>> setItems(WriteListOperation<T> operation) async {
     return _guarded<WriteListResult<T>>(
       operation,
@@ -636,11 +689,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   Future<WriteListResult<T>> _setItems(WriteListOperation<T> operation) async {
-    try {
-      await checkConnectivity(operation.details);
-    } on NoConnectivityException {
-      return WriteListFailure<T>(.connectivity, 'The device is offline.');
-    }
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) continue;
       final result = await ms.source.setItems(operation);
@@ -661,11 +709,6 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   }
 
   Future<DeleteResult<T>> _delete(DeleteOperation<T> operation) async {
-    try {
-      await checkConnectivity(operation.details);
-    } on NoConnectivityException {
-      return DeleteFailure<T>(.connectivity, 'The device is offline.');
-    }
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched) continue;
       final result = await ms.source.delete(operation);
@@ -724,6 +767,8 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
         await setItems(operation);
       case DeleteOperation<T>():
         await delete(operation);
+      case SendMessageOperation<T>():
+        await sendMessage(operation);
     }
   }
 
@@ -733,6 +778,22 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       _connectivitySub?.cancel() ?? Future<void>.value(),
       _retrySub?.cancel() ?? Future<void>.value(),
     ]);
+  }
+
+  /// Checks for invalid configurations.
+  void validate() {
+    bool hasSeenRemoteSource = false;
+    for (final source in sources) {
+      if (source.sourceType == .remote) {
+        hasSeenRemoteSource = true;
+      }
+      if (hasSeenRemoteSource && source.sourceType == .local) {
+        throw AssertionError(
+          'Local Source found after Remote Source in $this. Local Sources must '
+          'precede Remote Sources.',
+        );
+      }
+    }
   }
 
   @override

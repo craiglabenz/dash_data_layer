@@ -403,7 +403,8 @@ class _IsSuccess extends Matcher {
       item is ReadSuccess ||
       item is ReadListSuccess ||
       item is WriteSuccess ||
-      item is WriteListSuccess;
+      item is WriteListSuccess ||
+      item is DeleteSuccess;
 
   @override
   Description describe(Description description) =>

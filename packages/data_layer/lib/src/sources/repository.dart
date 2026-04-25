@@ -40,8 +40,10 @@ class Repository<T> with ReadinessMixin<void> {
   /// {@endtemplate}
   final DateTime Function() getTime;
 
+  /// {@template Repository.getById}
   /// Loads an item by the given [id] if it exists.
-  Future<T?> getById(String id, [RequestDetails? details]) async {
+  /// {@endtemplate}
+  Future<T?> getById(String id, {RequestDetails? details}) async {
     await ready;
     final result = await sourceList.getById(
       ReadOperation<T>(
@@ -60,8 +62,10 @@ class Repository<T> with ReadinessMixin<void> {
     }
   }
 
+  /// {@template Repository.watch}
   /// Opens a live stream for the item with the given [id].
-  Stream<T?> watch(String id, [RequestDetails? details]) async* {
+  /// {@endtemplate}
+  Stream<T?> watch(String id, {RequestDetails? details}) async* {
     await ready;
     yield* sourceList
         .watch(
@@ -83,12 +87,14 @@ class Repository<T> with ReadinessMixin<void> {
         });
   }
 
+  /// {@template Repository.getByIds}
   /// Loads all items in the given Id set. If any Ids were not fulfilled, they
   /// are included in `missingIds`.
+  /// {@endtemplate}
   Future<(List<T> items, Set<String> missingIds)> getByIds(
-    Set<String> ids, [
+    Set<String> ids, {
     RequestDetails? details,
-  ]) async {
+  }) async {
     await ready;
     final result = await sourceList.getByIds(
       ReadByIdsOperation<T>(
@@ -112,9 +118,9 @@ class Repository<T> with ReadinessMixin<void> {
 
   /// Opens a live stream for all items in the given Id set.
   Stream<(List<T> items, Set<String> missingIds)> watchByIds(
-    Set<String> ids, [
+    Set<String> ids, {
     RequestDetails? details,
-  ]) async* {
+  }) async* {
     await ready;
     yield* sourceList
         .watchByIds(
@@ -139,9 +145,10 @@ class Repository<T> with ReadinessMixin<void> {
         });
   }
 
+  /// {@template Repository.getItems}
   /// Loads all items that match the given request [details], or the default
   /// [RequestDetails.read] object if not given.
-
+  /// {@endtemplate}
   Future<List<T>> getItems({RequestDetails? details}) async {
     await ready;
     final result = await sourceList.getItems(
@@ -159,8 +166,10 @@ class Repository<T> with ReadinessMixin<void> {
     }
   }
 
+  /// {@template Repository.watchList}
   /// Opens a live stream for all items that match the given request [details],
   /// or the default [RequestDetails.read] object if not given.
+  /// {@endtemplate}
   Stream<List<T>> watchList({RequestDetails? details}) async* {
     await ready;
     yield* sourceList
@@ -183,7 +192,7 @@ class Repository<T> with ReadinessMixin<void> {
 
   /// Persists the given item and returns the saved value if the write was
   /// successful.
-  Future<T?> setItem(T item, [RequestDetails? details]) async {
+  Future<T?> setItem(T item, {RequestDetails? details}) async {
     await ready;
     final result = await sourceList.setItem(
       WriteOperation<T>(
@@ -202,7 +211,7 @@ class Repository<T> with ReadinessMixin<void> {
   }
 
   /// Persists all [items].
-  Future<List<T>> setItems(Iterable<T> items, [RequestDetails? details]) async {
+  Future<List<T>> setItems(Iterable<T> items, {RequestDetails? details}) async {
     await ready;
     final result = await sourceList.setItems(
       WriteListOperation<T>(
@@ -221,7 +230,7 @@ class Repository<T> with ReadinessMixin<void> {
   }
 
   /// Removes the item associated with the given [id] from persistence.
-  Future<void> delete(String id, [RequestDetails? details]) async {
+  Future<void> delete(String id, {RequestDetails? details}) async {
     await ready;
     await sourceList.delete(
       DeleteOperation<T>(
@@ -258,4 +267,49 @@ class Repository<T> with ReadinessMixin<void> {
 
   @override
   String toString() => 'Repository<$T>';
+}
+
+/// {@template MessageRepository}
+/// A highly-typed adapter for a [Repository] that cleanly handles discrete
+/// message/patch types (e.g. Freezed unions) for sending creation or update
+/// operations securely over an untyped boundary, before being transformed into
+/// the principal [T] object.
+/// {@endtemplate}
+class MessageRepository<T, M> extends Repository<T> {
+  /// {@macro MessageRepository}
+  MessageRepository(
+    super.sourceList, {
+    required this.messageBindings,
+    super.loggerName,
+    super.getTime,
+  });
+
+  /// The strongly-typed bindings detailing how your custom message serializes
+  /// itself before being sent to the server.
+  final Bindings<M> messageBindings;
+
+  /// Sends a generic message structure which serves as either a creation
+  /// or update depending on the evaluated presence of [targetId].
+  Future<T?> sendMessage(
+    M message, {
+    String? targetId,
+    RequestDetails? details,
+  }) async {
+    await ready;
+    final result = await sourceList.sendMessage(
+      SendMessageOperation<T>(
+        operationId: generateOperationId(),
+        message: MessagePayload<M>(message, messageBindings),
+        targetId: targetId,
+        details: details ?? RequestDetails.write(),
+        createdAt: getTime(),
+      ),
+    );
+    switch (result) {
+      case WriteSuccess<T>():
+        return result.item;
+      case WriteFailure<T>():
+        return null;
+    }
+  }
 }

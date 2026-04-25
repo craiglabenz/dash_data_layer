@@ -60,5 +60,7 @@ class ComboFilter extends Filter with EquatableMixin {
   );
 
   @override
-  Params toParams() => toJson().cast<String, String>();
+  Params toParams() => toJson().map<String, String>(
+    (key, value) => MapEntry(key, value.toString()),
+  );
 }

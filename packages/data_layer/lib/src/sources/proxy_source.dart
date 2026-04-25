@@ -19,7 +19,14 @@ typedef SetItems<T> = Future<List<T>?> Function(WriteListOperation<T>);
 /// Logic to activate `deleteItem`.
 typedef DeleteItem<T> = Future<DeleteResult<T>> Function(DeleteOperation<T>);
 
+/// Logic to activate `sendMessage`.
+typedef SendMessage<T> = Future<T?> Function(SendMessageOperation<T>);
+
 /// {@template ProxySource}
+/// Source whose constructor accepts a value for each operation type.
+///
+/// This is a build-a-source model to adapt an arbitrary data source to the
+/// pkg:data_layer system.
 /// {@endtemplate}
 class ProxySource<T> extends Source<T> {
   /// {@macro ProxySource}
@@ -32,6 +39,7 @@ class ProxySource<T> extends Source<T> {
     this.setItemHandler,
     this.setItemsHandler,
     this.deleteHandler,
+    this.sendMessageHandler,
   });
 
   final _log = Logger('ProxySource<T>');
@@ -53,6 +61,9 @@ class ProxySource<T> extends Source<T> {
 
   /// If supplied, used to satisfy [delete].
   final DeleteItem<T>? deleteHandler;
+
+  /// If supplied, used to satisfy [sendMessage].
+  final SendMessage<T>? sendMessageHandler;
 
   @override
   Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
@@ -184,6 +195,25 @@ class ProxySource<T> extends Source<T> {
       objs ?? operation.items,
       details: operation.details,
     );
+  }
+
+  @override
+  Future<WriteResult<T>> sendMessage(
+    SendMessageOperation<T> operation,
+  ) async {
+    if (sendMessageHandler == null) {
+      throw UnimplementedError();
+    }
+    try {
+      final obj = await sendMessageHandler!.call(operation);
+      return WriteSuccess<T>(obj as T, details: operation.details);
+    } on Exception catch (e) {
+      _log.severe(e);
+      return WriteFailure<T>(
+        FailureReason.serverError,
+        'Failed to send message',
+      );
+    }
   }
 
   @override

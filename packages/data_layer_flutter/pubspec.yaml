@@ -1,6 +1,6 @@
 name: data_layer_flutter
 description: Provides Flutter-specific bindings for pkg:data_layer.
-version: 0.0.2-rc.1
+version: 0.0.2
 repository: https://github.com/craiglabenz/dash_data_layer
 
 topics:
@@ -14,7 +14,7 @@ environment:
 
 dependencies:
   connectivity_plus: ^7.0.0
-  data_layer: ^0.0.2-rc.1
+  data_layer: ^0.0.6
   flutter:
     sdk: flutter
 

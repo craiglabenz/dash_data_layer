@@ -16,28 +16,16 @@ class Bindings<T> {
     required this.fromJson,
     required this.toJson,
     required this.getId,
-    required this.getDetailUrl,
-    required this.getListUrl,
   });
 
   /// Extracts the primary key from the object.
   final IdReader<T> getId;
-
-  /// Builder for detail [ApiUrl] instances for this data type.
-  final ApiUrl Function(String id) getDetailUrl;
-
-  /// Builder for list [ApiUrl] instances for this data type.
-  final ApiUrl Function() getListUrl;
 
   /// Json deserializer for this data type.
   final T Function(Json data) fromJson;
 
   /// Json deserializer for this data type.
   final Json Function(T obj) toJson;
-
-  /// Overrideable method which returns the creation Url for this data type. By
-  /// default, this proxies to [getListUrl].
-  ApiUrl getCreateUrl() => getListUrl();
 }
 
 /// {@template CreationBindings}
@@ -53,8 +41,6 @@ class CreationBindings<T> extends Bindings<T> {
     required super.getId,
     required super.fromJson,
     required super.toJson,
-    required super.getDetailUrl,
-    required super.getListUrl,
     required this.save,
   });
 
