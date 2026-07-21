@@ -1,43 +1,43 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart' hide Source;
 import 'package:data_layer/data_layer.dart';
-import 'package:data_layer_firestore/sources/firestore_filters.dart';
+import 'package:data_layer_firestore_admin/sources/firestore_admin_filters.dart';
+import 'package:google_cloud_firestore/google_cloud_firestore.dart'
+    hide Filter, WriteResult;
 import 'package:logging/logging.dart';
-import 'package:stream_transform/stream_transform.dart';
 
-/// {@template FirestoreSource}
-/// Firestore implementation of [Source].
+/// {@template FirestoreAdminSource}
+/// Firestore implementation of [Source] using `pkg:google_cloud_firestore`.
 /// {@endtemplate}
-class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
-  /// {@macro FirestoreSource}
-  FirestoreSource(
+class FirestoreAdminSource<T> extends Source<T> with WatchableSource<T> {
+  /// {@macro FirestoreAdminSource}
+  FirestoreAdminSource(
     this.firestore, {
     required super.bindings,
     required this.collectionName,
     this.onCreateServerTimestampFields = const [],
     this.onUpdateServerTimestampFields = const [],
   }) {
-    _log = Logger('FirestoreSource<$T>::$collectionName');
+    _log = Logger('FirestoreAdminSource<$T>::$collectionName');
   }
 
-  /// Firestore, baby!
-  final FirebaseFirestore firestore;
+  /// Firestore instance.
+  final Firestore firestore;
 
-  /// Fields that should be set to [FieldValue.serverTimestamp()] on create.
+  /// Fields that should be set to [FieldValue.serverTimestamp] on create.
   final List<String> onCreateServerTimestampFields;
 
-  /// Fields that should be set to [FieldValue.serverTimestamp()] on every write
+  /// Fields that should be set to [FieldValue.serverTimestamp] on every write.
   final List<String> onUpdateServerTimestampFields;
 
   /// The collection name from the Firestore console.
   final String collectionName;
 
   /// The Firestore collection for this source.
-  CollectionReference<Json> get collection =>
+  CollectionReference<DocumentData> get collection =>
       _collection ??= firestore.collection(collectionName);
 
-  CollectionReference<Json>? _collection;
+  CollectionReference<DocumentData>? _collection;
 
   late final Logger _log;
 
@@ -63,9 +63,19 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
       _guarded(() => _getByIds(operation), operation);
 
   Future<ReadListResult<T>> _getByIds(ReadByIdsOperation<T> operation) async {
+    if (operation.itemIds.isEmpty) {
+      return ReadListResult<T>.fromList(
+        [],
+        operation.details,
+        {},
+        bindings.getId,
+      );
+    }
+
     if (operation.itemIds.length <= 30) {
+      final docRefs = operation.itemIds.map(collection.doc).toList();
       return collection
-          .where(FieldPath.documentId, whereIn: operation.itemIds.toList())
+          .where(FieldPath.documentId, WhereFilter.isIn, docRefs)
           .get()
           .then((snapshot) => _processSnapshotDocs(snapshot.docs, operation));
     }
@@ -73,7 +83,13 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
     final chunks = operation.itemIds.toList().chunks(30).toList();
     final snapshots = await Future.wait(
       chunks.map(
-        (chunk) => collection.where(FieldPath.documentId, whereIn: chunk).get(),
+        (chunk) => collection
+            .where(
+              FieldPath.documentId,
+              WhereFilter.isIn,
+              chunk.map(collection.doc).toList(),
+            )
+            .get(),
       ),
     );
 
@@ -82,35 +98,13 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
   }
 
   ReadListResult<T> _processSnapshotDocs(
-    List<QueryDocumentSnapshot<Json>> docs,
+    List<DocumentSnapshot<DocumentData>> docs,
     ReadByIdsOperation<T> operation,
   ) {
     final items = docs
         .map(
           (doc) => bindings.fromJson(
-            cleanData(doc.data())..addAll({'id': doc.id}),
-          ),
-        )
-        .toList();
-    final missingIds = operation.itemIds.toSet().difference(
-      docs.map((doc) => doc.id).toSet(),
-    );
-    return ReadListResult<T>.fromList(
-      items,
-      operation.details,
-      missingIds,
-      bindings.getId,
-    );
-  }
-
-  ReadListResult<T> _processWatchSnapshotDocs(
-    List<QueryDocumentSnapshot<Json>> docs,
-    WatchByIdsOperation<T> operation,
-  ) {
-    final items = docs
-        .map(
-          (doc) => bindings.fromJson(
-            cleanData(doc.data())..addAll({'id': doc.id}),
+            cleanData(doc.data() ?? {})..addAll({'id': doc.id}),
           ),
         )
         .toList();
@@ -130,14 +124,14 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
       _guarded(() => _getItems(operation), operation);
 
   Future<ReadListResult<T>> _getItems(ReadListOperation<T> operation) {
-    Query<Json> query = collection;
+    Query<DocumentData> query = collection;
     if (operation.details.filter != null) {
-      if (operation.details.filter is! FirestoreFilter) {
+      if (operation.details.filter is! FirestoreAdminFilter) {
         throw UnsupportedError(
           'Filter ${operation.details.filter.runtimeType} is not supported',
         );
       }
-      query = (operation.details.filter! as FirestoreFilter).apply(query);
+      query = (operation.details.filter! as FirestoreAdminFilter).apply(query);
     }
     return query.get().then((snapshot) {
       return ReadListResult<T>.fromList(
@@ -172,12 +166,12 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
 
     // Apply server timestamps for updates
     for (final field in onUpdateServerTimestampFields) {
-      dataToWrite[field] = FieldValue.serverTimestamp();
+      dataToWrite[field] = FieldValue.serverTimestamp;
     }
     if (existingId == null || operation.details.forceInsert) {
       // Apply server timestamps for create
       for (final field in onCreateServerTimestampFields) {
-        dataToWrite[field] = FieldValue.serverTimestamp();
+        dataToWrite[field] = FieldValue.serverTimestamp;
       }
     }
 
@@ -231,90 +225,27 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
   }
 
   @override
-  SourceType sourceType = .remote;
+  SourceType sourceType = SourceType.remote;
 
   @override
   Stream<ReadResult<T>> watch(WatchOperation<T> operation) =>
-      _guardedSync(() => _watch(operation), operation);
-
-  Stream<ReadResult<T>> _watch(WatchOperation<T> operation) {
-    return collection.doc(operation.itemId).snapshots().map((snapshot) {
-      if (!snapshot.exists) {
-        return ReadSuccess<T>(null, details: operation.details);
-      }
-      return ReadSuccess<T>(
-        bindings.fromJson(
-          cleanData(snapshot.data() ?? {})..addAll({'id': snapshot.id}),
-        ),
-        details: operation.details,
+      throw UnimplementedError(
+        'google_cloud_firestore does not support realtime stream watching.',
       );
-    });
-  }
 
   @override
   Stream<ReadListResult<T>> watchByIds(WatchByIdsOperation<T> operation) =>
-      _guardedSync(() => _watchByIds(operation), operation);
-
-  Stream<ReadListResult<T>> _watchByIds(WatchByIdsOperation<T> operation) {
-    if (operation.itemIds.length <= 30) {
-      return collection
-          .where(FieldPath.documentId, whereIn: operation.itemIds)
-          .snapshots()
-          .map(
-            (snapshot) => _processWatchSnapshotDocs(snapshot.docs, operation),
-          );
-    }
-
-    final chunks = operation.itemIds.toList().chunks(30).toList();
-    final streams = chunks.map(
-      (chunk) => collection
-          .where(FieldPath.documentId, whereIn: chunk)
-          .snapshots()
-          .map((s) => s.docs),
-    );
-
-    final streamsList = streams.toList();
-    return streamsList.first
-        .combineLatestAll(streamsList.skip(1))
-        .map(
-          (docsList) => _processWatchSnapshotDocs(
-            docsList.expand((docs) => docs).toList(),
-            operation,
-          ),
-        );
-  }
+      throw UnimplementedError(
+        'google_cloud_firestore does not support realtime stream watching.',
+      );
 
   @override
   Stream<ReadListResult<T>> watchList(WatchListOperation<T> operation) =>
-      _guardedSync(() => _watchList(operation), operation);
-
-  Stream<ReadListResult<T>> _watchList(WatchListOperation<T> operation) {
-    Query<Json> query = collection;
-    if (operation.details.filter != null) {
-      if (operation.details.filter is! FirestoreFilter) {
-        throw UnsupportedError(
-          'Filter ${operation.details.filter.runtimeType} is not supported',
-        );
-      }
-      query = (operation.details.filter! as FirestoreFilter).apply(query);
-    }
-    return query.snapshots().map((snapshot) {
-      return ReadListResult<T>.fromList(
-        snapshot.docs
-            .map(
-              (doc) => bindings.fromJson(
-                cleanData(doc.data())..addAll({'id': doc.id}),
-              ),
-            )
-            .toList(),
-        operation.details,
-        {},
-        bindings.getId,
+      throw UnimplementedError(
+        'google_cloud_firestore does not support realtime stream watching.',
       );
-    });
-  }
 
-  /// Converts Firebase [Timestamp] values into Dart [DateTime]s.
+  /// Converts Firebase [Timestamp] values into ISO 8601 strings.
   static Json cleanData(Json data) {
     if (data.isEmpty) {
       return data;
@@ -346,10 +277,10 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
       List<Object?>? newList;
       for (var i = 0; i < value.length; i++) {
         final item = value[i];
-        final cleanedItem = _cleanValue(item);
-        if (!identical(cleanedItem, item)) {
+        final cleanedValue = _cleanValue(item);
+        if (!identical(cleanedValue, item)) {
           newList ??= List<Object?>.from(value);
-          newList[i] = cleanedItem;
+          newList[i] = cleanedValue;
         }
       }
       return newList ?? value;
@@ -411,11 +342,14 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
     return value;
   }
 
-  Future<R> _guarded<R>(Future<R> Function() fn, Operation<T> operation) async {
+  Future<R> _guarded<R>(
+    Future<R> Function() fn,
+    Operation<T> operation,
+  ) async {
     try {
       return await fn();
-    } on FirebaseException catch (e) {
-      _handleFirebaseException(e, operation);
+    } on FirestoreException catch (e) {
+      _handleFirestoreException(e, operation);
       rethrow;
     } on Exception catch (e) {
       final description = _describeOperation(operation);
@@ -424,38 +358,25 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
     }
   }
 
-  R _guardedSync<R>(R Function() fn, Operation<T> operation) {
-    try {
-      return fn();
-    } on FirebaseException catch (e) {
-      _handleFirebaseException(e, operation);
-      rethrow;
-    } on Exception catch (e) {
-      final description = _describeOperation(operation);
-      _log.severe('Uncaught error: $e. $description');
-      rethrow;
-    }
-  }
-
-  void _handleFirebaseException(
-    FirebaseException e,
+  void _handleFirestoreException(
+    FirestoreException e,
     Operation<T> operation,
   ) {
     final description = _describeOperation(operation);
     switch (e.code) {
-      case 'permission-denied':
+      case 'permission_denied':
         _log.severe('Permission denied: ${e.message}. $description');
-      case 'not-found':
+      case 'not_found':
         _log.severe('Not found: ${e.message}. $description');
       case 'unavailable':
         _log.severe('The service is currently unavailable (offline?).');
       case 'unauthenticated':
         _log.severe('User must be logged in to perform this action.');
-      case 'deadline-exceeded':
+      case 'deadline_exceeded':
         _log.severe('The operation took too long to complete.');
       default:
         _log.severe(
-          'Uncaught Firebase error ${e.code} :: ${e.message}. $description',
+          'Uncaught Firestore error ${e.code} :: ${e.message}. $description',
         );
     }
   }

@@ -49,16 +49,35 @@ mixin WriteMixin<T> {
 }
 
 /// Introduces message operations for creation and generic updates.
-mixin MessageWriteMixin<T> {
+mixin MessageWriteMixin<T> on DataContract<T> {
   /// Sends a message object (e.g. for patching or decoupled creations).
   Future<WriteResult<T>> sendMessage(SendMessageOperation<T> operation);
+
+  @override
+  Set<SourceOperationType> get supportedOperations => {
+    ...super.supportedOperations,
+    SourceOperationType.sendMessage,
+  };
 }
 
 /// {@template DataContract}
 /// Outline of core methods to which all data loaders must adhere.
 /// {@endtemplate}
-abstract class DataContract<T>
-    with ReadMixin<T>, WriteMixin<T>, MessageWriteMixin<T> {
+abstract class DataContract<T> with ReadMixin<T>, WriteMixin<T> {
   /// {@macro DataContract}
   const DataContract();
+
+  /// The operations supported by this loader instance.
+  /// Defaults to standard CRUD operations.
+  Set<SourceOperationType> get supportedOperations => const {
+    SourceOperationType.getById,
+    SourceOperationType.getByIds,
+    SourceOperationType.getItems,
+    SourceOperationType.setItem,
+    SourceOperationType.setItems,
+    SourceOperationType.delete,
+  };
+
+  /// Returns whether this instance supports the given [SourceOperationType].
+  bool supports(SourceOperationType type) => supportedOperations.contains(type);
 }

@@ -187,3 +187,79 @@ Map<String, dynamic> _$SendMessageOperationToJson<T>(
   'attemptNumber': instance.attemptNumber,
   'runtimeType': instance.$type,
 };
+
+WatchOperation<T> _$WatchOperationFromJson<T>(
+  Map<String, dynamic> json,
+  T Function(Object? json) fromJsonT,
+) => WatchOperation<T>(
+  operationId: json['operationId'] as String,
+  itemId: json['itemId'] as String,
+  details: const RequestDetailsConverter().fromJson(
+    json['details'] as Map<String, Object?>,
+  ),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  attemptNumber: (json['attemptNumber'] as num?)?.toInt() ?? 0,
+  $type: json['runtimeType'] as String?,
+);
+
+Map<String, dynamic> _$WatchOperationToJson<T>(
+  WatchOperation<T> instance,
+  Object? Function(T value) toJsonT,
+) => <String, dynamic>{
+  'operationId': instance.operationId,
+  'itemId': instance.itemId,
+  'details': const RequestDetailsConverter().toJson(instance.details),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'attemptNumber': instance.attemptNumber,
+  'runtimeType': instance.$type,
+};
+
+WatchListOperation<T> _$WatchListOperationFromJson<T>(
+  Map<String, dynamic> json,
+  T Function(Object? json) fromJsonT,
+) => WatchListOperation<T>(
+  operationId: json['operationId'] as String,
+  details: const RequestDetailsConverter().fromJson(
+    json['details'] as Map<String, Object?>,
+  ),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  attemptNumber: (json['attemptNumber'] as num?)?.toInt() ?? 0,
+  $type: json['runtimeType'] as String?,
+);
+
+Map<String, dynamic> _$WatchListOperationToJson<T>(
+  WatchListOperation<T> instance,
+  Object? Function(T value) toJsonT,
+) => <String, dynamic>{
+  'operationId': instance.operationId,
+  'details': const RequestDetailsConverter().toJson(instance.details),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'attemptNumber': instance.attemptNumber,
+  'runtimeType': instance.$type,
+};
+
+WatchByIdsOperation<T> _$WatchByIdsOperationFromJson<T>(
+  Map<String, dynamic> json,
+  T Function(Object? json) fromJsonT,
+) => WatchByIdsOperation<T>(
+  operationId: json['operationId'] as String,
+  itemIds: (json['itemIds'] as List<dynamic>).map((e) => e as String).toSet(),
+  details: const RequestDetailsConverter().fromJson(
+    json['details'] as Map<String, Object?>,
+  ),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  attemptNumber: (json['attemptNumber'] as num?)?.toInt() ?? 0,
+  $type: json['runtimeType'] as String?,
+);
+
+Map<String, dynamic> _$WatchByIdsOperationToJson<T>(
+  WatchByIdsOperation<T> instance,
+  Object? Function(T value) toJsonT,
+) => <String, dynamic>{
+  'operationId': instance.operationId,
+  'itemIds': instance.itemIds.toList(),
+  'details': const RequestDetailsConverter().toJson(instance.details),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'attemptNumber': instance.attemptNumber,
+  'runtimeType': instance.$type,
+};

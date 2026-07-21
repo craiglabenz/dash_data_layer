@@ -26,8 +26,10 @@ void main() {
     final retryPolicy = MockRetryPolicy();
 
     setUp(() {
+      registerFallbackValue(SourceOperationType.getById);
       when(() => source.hasBindings).thenReturn(true);
       when(() => source.sourceType).thenReturn(.remote);
+      when(() => source.supports(any())).thenReturn(true);
 
       retryController = StreamController<Operation<TestModel>>();
       when(
@@ -74,6 +76,7 @@ void main() {
     setUp(() {
       when(() => source.hasBindings).thenReturn(true);
       when(() => source.sourceType).thenReturn(.remote);
+      when(() => source.supports(any())).thenReturn(true);
 
       retryController = StreamController<Operation<TestModel>>();
       when(

@@ -22,7 +22,8 @@ import 'package:logging/logging.dart';
 /// See also:
 ///   * [RetryPolicy] which controls how failed operations are retried.
 /// {@endtemplate}
-class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
+class SourceList<T> extends DataContract<T>
+    with MessageWriteMixin<T>, ReadinessMixin<void> {
   /// {@macro SourceList}
   SourceList({
     required this.sources,
@@ -129,7 +130,9 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     WriteOperation<T> operation,
   ) async {
     for (final source in emptySources) {
-      await source.setItem(operation);
+      if (source.supports(operation.type)) {
+        await source.setItem(operation);
+      }
     }
   }
 
@@ -138,7 +141,9 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     WriteListOperation<T> operation,
   ) async {
     for (final source in emptySources) {
-      await source.setItems(operation);
+      if (source.supports(operation.type)) {
+        await source.setItems(operation);
+      }
     }
   }
 
@@ -165,7 +170,8 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     ).where((s) => s.matched).map((s) => s.source);
 
     for (final source in matchedSources) {
-      if (source is WatchableSource<T>) {
+      if (source is WatchableSource<T> &&
+          source.supports(SourceOperationType.watch)) {
         return source;
       }
     }
@@ -190,7 +196,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   /// Opens a live stream which will yield the current matching model
   /// periodically via a [ReadResult].
-  Stream<ReadResult<T>> watch(ReadOperation<T> operation) {
+  Stream<ReadResult<T>> watch(WatchOperation<T> operation) {
     if (_activeWatchStreams.containsKey(operation.cacheKey)) {
       return _activeWatchStreams[operation.cacheKey]!;
     }
@@ -232,7 +238,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   /// Opens a live stream which will yield the current matching models
   /// periodically via a [ReadListResult].
-  Stream<ReadListResult<T>> watchList(ReadListOperation<T> operation) {
+  Stream<ReadListResult<T>> watchList(WatchListOperation<T> operation) {
     if (_activeWatchListStreams.containsKey(operation.cacheKey)) {
       return _activeWatchListStreams[operation.cacheKey]!;
     }
@@ -278,7 +284,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   /// Opens a live stream which will yield the current matching models
   /// periodically via a [ReadListResult].
-  Stream<ReadListResult<T>> watchByIds(ReadByIdsOperation<T> operation) {
+  Stream<ReadListResult<T>> watchByIds(WatchByIdsOperation<T> operation) {
     if (_activeWatchByIdsStreams.containsKey(operation.cacheKey)) {
       return _activeWatchByIdsStreams[operation.cacheKey]!;
     }
@@ -400,8 +406,10 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       requestType: operation.details.requestType,
     );
     for (final ms in sourcesIter) {
-      if (ms.unmatched) {
-        emptySources.add(ms.source);
+      if (ms.unmatched || !ms.source.supports(operation.type)) {
+        if (ms.unmatched) {
+          emptySources.add(ms.source);
+        }
         continue;
       }
       final source = ms.source;
@@ -457,7 +465,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
         break;
       }
 
-      if (ms.unmatched) {
+      if (ms.unmatched || !ms.source.supports(operation.type)) {
         pastSources.add(ms.source);
         continue;
       }
@@ -527,7 +535,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
   Future<ReadListResult<T>> _getItems(ReadListOperation<T> operation) async {
     final emptySources = <Source<T>>[];
     for (final ms in getSources(requestType: operation.details.requestType)) {
-      if (ms.unmatched) {
+      if (ms.unmatched || !ms.source.supports(operation.type)) {
         emptySources.add(ms.source);
         continue;
       }
@@ -601,7 +609,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
       // Hit API first if item is new, so as to get an Id
       reversed: bindings.getId(operation.item) == null,
     )) {
-      if (ms.unmatched) continue;
+      if (ms.unmatched || !ms.source.supports(operation.type)) continue;
 
       final result = await ms.source.setItem(
         operation.copyWith(item: itemCopy),
@@ -652,9 +660,18 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
     )) {
       if (ms.unmatched || ms.source is LocalSource) continue;
 
-      final result = await ms.source.sendMessage(operation);
-      if (ms.source.sourceType == SourceType.remote) {
-        finalResult = result;
+      if (ms.source case final MessageWriteMixin<T> messageSource) {
+        if (messageSource.supports(operation.type)) {
+          final result = await messageSource.sendMessage(operation);
+          if (ms.source.sourceType == SourceType.remote) {
+            finalResult = result;
+          }
+        }
+      } else {
+        _log.finest(
+          'Source ${ms.source} does not support sendMessage. '
+          'Continuing on to next source.',
+        );
       }
     }
 
@@ -690,7 +707,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   Future<WriteListResult<T>> _setItems(WriteListOperation<T> operation) async {
     for (final ms in getSources(requestType: operation.details.requestType)) {
-      if (ms.unmatched) continue;
+      if (ms.unmatched || !ms.source.supports(operation.type)) continue;
       final result = await ms.source.setItems(operation);
       if (result is WriteListFailure) {
         return result;
@@ -710,7 +727,7 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
 
   Future<DeleteResult<T>> _delete(DeleteOperation<T> operation) async {
     for (final ms in getSources(requestType: operation.details.requestType)) {
-      if (ms.unmatched) continue;
+      if (ms.unmatched || !ms.source.supports(operation.type)) continue;
       final result = await ms.source.delete(operation);
       if (result is DeleteFailure<T>) {
         return result;
@@ -769,6 +786,12 @@ class SourceList<T> extends DataContract<T> with ReadinessMixin<void> {
         await delete(operation);
       case SendMessageOperation<T>():
         await sendMessage(operation);
+      case WatchOperation<T>():
+        watch(operation);
+      case WatchListOperation<T>():
+        watchList(operation);
+      case WatchByIdsOperation<T>():
+        watchByIds(operation);
     }
   }
 

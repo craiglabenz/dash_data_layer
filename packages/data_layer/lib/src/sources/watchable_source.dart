@@ -10,13 +10,21 @@ import 'package:data_layer/data_layer.dart';
 mixin WatchableSource<T> on Source<T> {
   /// Opens a live stream which will yield the current matching model
   /// periodically via a [ReadResult].
-  Stream<ReadResult<T>> watch(ReadOperation<T> operation);
+  Stream<ReadResult<T>> watch(WatchOperation<T> operation);
 
   /// Opens a live stream which will yield the current matching models
   /// periodically via a [ReadListResult].
-  Stream<ReadListResult<T>> watchList(ReadListOperation<T> operation);
+  Stream<ReadListResult<T>> watchList(WatchListOperation<T> operation);
 
   /// Opens a live stream which will yield the current matching models
   /// periodically via a [ReadListResult].
-  Stream<ReadListResult<T>> watchByIds(ReadByIdsOperation<T> operation);
+  Stream<ReadListResult<T>> watchByIds(WatchByIdsOperation<T> operation);
+
+  @override
+  Set<SourceOperationType> get supportedOperations => {
+    ...super.supportedOperations,
+    SourceOperationType.watch,
+    SourceOperationType.watchList,
+    SourceOperationType.watchByIds,
+  };
 }

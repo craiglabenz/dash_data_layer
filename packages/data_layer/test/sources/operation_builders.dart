@@ -60,3 +60,33 @@ DeleteOperation<TestModel> gdo(String itemId, RequestDetails details) =>
       details: details,
       createdAt: _now(),
     );
+
+/// get WatchOperation
+// ignore: non_constant_identifier_names
+WatchOperation<TestModel> gwo_watch(String itemId, RequestDetails details) =>
+    WatchOperation<TestModel>(
+      operationId: 'abc',
+      itemId: itemId,
+      details: details,
+      createdAt: _now(),
+    );
+
+/// get WatchListOperation
+// ignore: non_constant_identifier_names
+WatchListOperation<TestModel> gwlo_watch(RequestDetails details) =>
+    WatchListOperation<TestModel>(
+      operationId: 'abc',
+      details: details,
+      createdAt: _now(),
+    );
+
+/// get WatchByIdsOperation
+WatchByIdsOperation<TestModel> gwbido(
+  Set<String> itemIds,
+  RequestDetails details,
+) => WatchByIdsOperation<TestModel>(
+  operationId: 'abc',
+  itemIds: itemIds,
+  details: details,
+  createdAt: _now(),
+);

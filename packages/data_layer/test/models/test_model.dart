@@ -125,15 +125,15 @@ class FakeSourceList<T> extends SourceList<T> {
   final watchByIdsController = StreamController<ReadListResult<T>>.broadcast();
 
   @override
-  Stream<ReadResult<T>> watch(ReadOperation<T> operation) =>
+  Stream<ReadResult<T>> watch(WatchOperation<T> operation) =>
       watchController.stream;
 
   @override
-  Stream<ReadListResult<T>> watchList(ReadListOperation<T> operation) =>
+  Stream<ReadListResult<T>> watchList(WatchListOperation<T> operation) =>
       watchListController.stream;
 
   @override
-  Stream<ReadListResult<T>> watchByIds(ReadByIdsOperation<T> operation) =>
+  Stream<ReadListResult<T>> watchByIds(WatchByIdsOperation<T> operation) =>
       watchByIdsController.stream;
 }
 

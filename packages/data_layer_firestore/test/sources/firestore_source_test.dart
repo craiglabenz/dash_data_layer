@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../models/test_model.dart';
 
 // Concrete FirestoreFilter for testing
-class TestFilter extends Filter with FirestoreFilter {
+class TestFilter extends FirestoreFilter {
   const TestFilter(this.filterFn);
 
   final Query<Json> Function(Query<Json>) filterFn;
@@ -357,13 +357,36 @@ void main() {
       );
     });
 
-    test('handles lists with non-Map items', () {
+    test('does not convert non-ISO strings to Timestamps', () {
       final data = {
-        'name': 'Test',
-        'tags': ['a', 'b'],
-        'createdAt': DateTime.now(),
+        'name': 'Test User',
+        'email': 'test@example.com',
+        'shortDate': '2024-05-15',
+        'title': 'Developer',
       };
-      expect(() => FirestoreSource.cleanDataForWrite(data), returnsNormally);
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned['name'], equals('Test User'));
+      expect(cleaned['email'], equals('test@example.com'));
+      expect(cleaned['shortDate'], equals('2024-05-15'));
+      expect(cleaned['title'], equals('Developer'));
+    });
+
+    test('converts ISO 8601 strings with various formats to Timestamps', () {
+      final data = {
+        'isoWithMs': '2024-05-15T10:30:00.123Z',
+        'isoNoMs': '2024-05-15T10:30:00Z',
+        'isoLocal': '2024-05-15T10:30:00',
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned['isoWithMs'], isA<Timestamp>());
+      expect(cleaned['isoNoMs'], isA<Timestamp>());
+      expect(cleaned['isoLocal'], isA<Timestamp>());
+
+      final parsedMs = DateTime.parse('2024-05-15T10:30:00.123Z');
+      expect(
+        (cleaned['isoWithMs']! as Timestamp).toDate(),
+        equals(parsedMs.toLocal()),
+      );
     });
 
     test('returns same object if empty', () {
