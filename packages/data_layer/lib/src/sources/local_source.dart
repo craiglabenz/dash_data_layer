@@ -295,18 +295,4 @@ class LocalSource<T> extends Source<T> {
     await deleteIds({operation.itemId});
     return DeleteSuccess<T>(operation.details);
   }
-
-  @override
-  Future<WriteResult<T>> sendMessage(
-    SendMessageOperation<T> operation,
-  ) async {
-    // Local memory caches cannot handle message creation without IDs reliably
-    // and take zero special actions while the update is pending locally.
-    // The remote server will handle the modification, and it will be
-    // automatically cached via write-through upon completion.
-    return WriteFailure<T>(
-      FailureReason.badRequest,
-      'Local source defers to remote server for message sending.',
-    );
-  }
 }

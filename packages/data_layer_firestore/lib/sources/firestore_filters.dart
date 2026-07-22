@@ -4,7 +4,14 @@ import 'package:data_layer/data_layer.dart';
 /// {@template FirestoreFilter}
 /// Filter for Firestore queries.
 /// {@endtemplate}
-mixin FirestoreFilter on Filter {
+abstract class FirestoreFilter extends Filter {
+  /// {@macro FirestoreFilter}
+  const FirestoreFilter();
+
   /// Add whatever WHERE clauses are necessary to modify this [query].
   Query<Json> apply(Query<Json> query);
 }
+// mixin FirestoreFilter on Filter {
+//   /// Add whatever WHERE clauses are necessary to modify this [query].
+//   Query<Json> apply(Query<Json> query);
+// }

@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../models/test_model.dart';
 
 // Concrete FirestoreFilter for testing
-class TestFilter extends Filter with FirestoreFilter {
+class TestFilter extends FirestoreFilter {
   const TestFilter(this.filterFn);
 
   final Query<Json> Function(Query<Json>) filterFn;
@@ -224,6 +224,51 @@ void main() {
       });
     });
 
+    group('raw', () {
+      test('merges json map into existing document', () async {
+        final doc = await collection.add({
+          'name': 'Original Name',
+          'age': 30,
+        });
+
+        await source.raw(doc.id, {
+          'age': 31,
+          'city': 'San Francisco',
+        });
+
+        final stored = await collection.doc(doc.id).get();
+        expect(stored.data()!['name'], 'Original Name');
+        expect(stored.data()!['age'], 31);
+        expect(stored.data()!['city'], 'San Francisco');
+      });
+
+      test('creates document if it does not exist', () async {
+        await source.raw('new-doc-id', {
+          'name': 'New Document',
+          'status': 'active',
+        });
+
+        final stored = await collection.doc('new-doc-id').get();
+        expect(stored.exists, isTrue);
+        expect(stored.data()!['name'], 'New Document');
+        expect(stored.data()!['status'], 'active');
+      });
+
+      test('cleans date fields in raw map before write', () async {
+        final now = DateTime.utc(2024, 5, 20);
+        await source.raw('doc-with-date', {
+          'timestamp': now,
+        });
+
+        final stored = await collection.doc('doc-with-date').get();
+        expect(stored.data()!['timestamp'], isA<Timestamp>());
+        expect(
+          (stored.data()!['timestamp']! as Timestamp).toDate(),
+          equals(now.toLocal()),
+        );
+      });
+    });
+
     group('cleanData', () {
       test('converts root-level Timestamps to ISO 8601 strings', () {
         final timestamp = Timestamp.fromDate(DateTime.utc(2024));
@@ -289,6 +334,116 @@ void main() {
         final cleaned = FirestoreSource.cleanData(data);
         expect(cleaned, same(data));
       });
+    });
+  });
+
+  group('cleanDataForWrite', () {
+    test('converts root-level DateTimes to Timestamps', () {
+      final dateTime = DateTime.utc(2024);
+      final data = {
+        'name': 'Test',
+        'createdAt': dateTime,
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned['createdAt'], isA<Timestamp>());
+      expect(
+        (cleaned['createdAt']! as Timestamp).toDate(),
+        equals(dateTime.toLocal()),
+      );
+    });
+
+    test('converts ISO 8601 string DateTimes to Timestamps', () {
+      final dateTime = DateTime.utc(2024);
+      final data = {
+        'name': 'Test',
+        'createdAt': dateTime.toIso8601String(),
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned['createdAt'], isA<Timestamp>());
+      expect(
+        (cleaned['createdAt']! as Timestamp).toDate(),
+        equals(dateTime.toLocal()),
+      );
+    });
+
+    test('converts nested DateTimes in Maps', () {
+      final dateTime = DateTime.utc(2024);
+      final data = {
+        'name': 'Test',
+        'metadata': {
+          'updatedAt': dateTime,
+        },
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect((cleaned['metadata']! as Map)['updatedAt'], isA<Timestamp>());
+      expect(
+        ((cleaned['metadata']! as Map)['updatedAt'] as Timestamp).toDate(),
+        equals(dateTime.toLocal()),
+      );
+    });
+
+    test('converts nested DateTimes in Lists', () {
+      final dateTime = DateTime.utc(2024);
+      final data = {
+        'name': 'Test',
+        'history': [
+          {'at': dateTime},
+        ],
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(
+        ((cleaned['history']! as List).first as Map)['at'],
+        isA<Timestamp>(),
+      );
+      expect(
+        (((cleaned['history']! as List).first as Map)['at'] as Timestamp)
+            .toDate(),
+        equals(dateTime.toLocal()),
+      );
+    });
+
+    test('does not convert non-ISO strings to Timestamps', () {
+      final data = {
+        'name': 'Test User',
+        'email': 'test@example.com',
+        'shortDate': '2024-05-15',
+        'title': 'Developer',
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned['name'], equals('Test User'));
+      expect(cleaned['email'], equals('test@example.com'));
+      expect(cleaned['shortDate'], equals('2024-05-15'));
+      expect(cleaned['title'], equals('Developer'));
+    });
+
+    test('converts ISO 8601 strings with various formats to Timestamps', () {
+      final data = {
+        'isoWithMs': '2024-05-15T10:30:00.123Z',
+        'isoNoMs': '2024-05-15T10:30:00Z',
+        'isoLocal': '2024-05-15T10:30:00',
+      };
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned['isoWithMs'], isA<Timestamp>());
+      expect(cleaned['isoNoMs'], isA<Timestamp>());
+      expect(cleaned['isoLocal'], isA<Timestamp>());
+
+      final parsedMs = DateTime.parse('2024-05-15T10:30:00.123Z');
+      expect(
+        (cleaned['isoWithMs']! as Timestamp).toDate(),
+        equals(parsedMs.toLocal()),
+      );
+    });
+
+    test('returns same object if empty', () {
+      final data = <String, dynamic>{};
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned, same(data));
+    });
+
+    test('returns same object if no DateTimes found', () {
+      final data = {'name': 'Test', 'count': 1};
+      final cleaned = FirestoreSource.cleanDataForWrite(data);
+      expect(cleaned, same(data));
     });
   });
 }

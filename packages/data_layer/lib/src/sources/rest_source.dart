@@ -6,7 +6,7 @@ import 'package:logging/logging.dart';
 /// {@template RestSource}
 /// Subtype of [Source] which knows how to make network requests to load data.
 /// {@endtemplate}
-class RestSource<T> extends Source<T> {
+class RestSource<T> extends Source<T> with MessageWriteMixin<T> {
   /// {@macro RestSource}
   RestSource({
     required RestApi restApi,

@@ -28,7 +28,7 @@ typedef SendMessage<T> = Future<T?> Function(SendMessageOperation<T>);
 /// This is a build-a-source model to adapt an arbitrary data source to the
 /// pkg:data_layer system.
 /// {@endtemplate}
-class ProxySource<T> extends Source<T> {
+class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
   /// {@macro ProxySource}
   ProxySource({
     required super.bindings,
@@ -64,6 +64,36 @@ class ProxySource<T> extends Source<T> {
 
   /// If supplied, used to satisfy [sendMessage].
   final SendMessage<T>? sendMessageHandler;
+
+  @override
+  Set<SourceOperationType> get supportedOperations => {
+    if (getByIdHandler != null) SourceOperationType.getById,
+    if (getByIdsHandler != null) SourceOperationType.getByIds,
+    if (getItemsHandler != null) SourceOperationType.getItems,
+    if (setItemHandler != null) SourceOperationType.setItem,
+    if (setItemsHandler != null) SourceOperationType.setItems,
+    if (deleteHandler != null) SourceOperationType.delete,
+    if (sendMessageHandler != null) SourceOperationType.sendMessage,
+  };
+
+  @override
+  Future<WriteResult<T>> sendMessage(
+    SendMessageOperation<T> operation,
+  ) async {
+    if (sendMessageHandler == null) {
+      throw UnimplementedError();
+    }
+    try {
+      final obj = await sendMessageHandler!.call(operation);
+      return WriteSuccess<T>(obj as T, details: operation.details);
+    } on Exception catch (e) {
+      _log.severe(e);
+      return WriteFailure<T>(
+        FailureReason.serverError,
+        'Failed to send message',
+      );
+    }
+  }
 
   @override
   Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
@@ -195,25 +225,6 @@ class ProxySource<T> extends Source<T> {
       objs ?? operation.items,
       details: operation.details,
     );
-  }
-
-  @override
-  Future<WriteResult<T>> sendMessage(
-    SendMessageOperation<T> operation,
-  ) async {
-    if (sendMessageHandler == null) {
-      throw UnimplementedError();
-    }
-    try {
-      final obj = await sendMessageHandler!.call(operation);
-      return WriteSuccess<T>(obj as T, details: operation.details);
-    } on Exception catch (e) {
-      _log.severe(e);
-      return WriteFailure<T>(
-        FailureReason.serverError,
-        'Failed to send message',
-      );
-    }
   }
 
   @override

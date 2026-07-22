@@ -69,7 +69,7 @@ class Repository<T> with ReadinessMixin<void> {
     await ready;
     yield* sourceList
         .watch(
-          ReadOperation<T>(
+          WatchOperation<T>(
             operationId: generateOperationId(),
             itemId: id,
             details: details ?? RequestDetails.read(),
@@ -124,7 +124,7 @@ class Repository<T> with ReadinessMixin<void> {
     await ready;
     yield* sourceList
         .watchByIds(
-          ReadByIdsOperation<T>(
+          WatchByIdsOperation<T>(
             operationId: generateOperationId(),
             itemIds: ids,
             details: details ?? RequestDetails.read(),
@@ -174,7 +174,7 @@ class Repository<T> with ReadinessMixin<void> {
     await ready;
     yield* sourceList
         .watchList(
-          ReadListOperation<T>(
+          WatchListOperation<T>(
             operationId: generateOperationId(),
             details: details ?? RequestDetails.read(),
             createdAt: getTime(),

@@ -32,7 +32,7 @@ class CountingWatchableSource extends Source<TestModel>
       StreamController<ReadListResult<TestModel>>.broadcast();
 
   @override
-  Stream<ReadResult<TestModel>> watch(ReadOperation<TestModel> operation) {
+  Stream<ReadResult<TestModel>> watch(WatchOperation<TestModel> operation) {
     return Stream.multi((controller) {
       listenCount++;
       final sub = watchController.stream.listen(
@@ -53,7 +53,7 @@ class CountingWatchableSource extends Source<TestModel>
 
   @override
   Stream<ReadListResult<TestModel>> watchList(
-    ReadListOperation<TestModel> operation,
+    WatchListOperation<TestModel> operation,
   ) {
     return Stream.multi((controller) {
       listenCount++;
@@ -75,7 +75,7 @@ class CountingWatchableSource extends Source<TestModel>
 
   @override
   Stream<ReadListResult<TestModel>> watchByIds(
-    ReadByIdsOperation<TestModel> operation,
+    WatchByIdsOperation<TestModel> operation,
   ) {
     return Stream.multi((controller) {
       listenCount++;
@@ -124,11 +124,6 @@ class CountingWatchableSource extends Source<TestModel>
   Future<WriteListResult<TestModel>> setItems(
     WriteListOperation<TestModel> operation,
   ) async => throw UnimplementedError();
-
-  @override
-  Future<WriteResult<TestModel>> sendMessage(
-    SendMessageOperation<TestModel> operation,
-  ) => throw UnimplementedError();
 }
 
 void main() {
@@ -150,8 +145,7 @@ void main() {
     test(
       'connect to inner source only once for same cache key and broadcast',
       () async {
-        final op = gro('123', RequestDetails());
-
+        final op = gwo_watch('123', RequestDetails());
         final stream1 = sourceList.watch(op);
         final stream2 = sourceList.watch(op);
 
@@ -187,7 +181,7 @@ void main() {
     );
 
     test('automatically cache values into LocalSources', () async {
-      final op = gro('123', RequestDetails());
+      final op = gwo_watch('123', RequestDetails());
       final stream = sourceList.watch(op);
       final sub = stream.listen((_) {});
       await Future<void>.microtask(() {});
@@ -218,14 +212,43 @@ void main() {
       await sub.cancel();
     });
 
+    test(
+      'result in cache hits for subsequent SourceList.getById calls',
+      () async {
+        final watchOp = gwo_watch('123', RequestDetails());
+        final stream = sourceList.watch(watchOp);
+        final sub = stream.listen((_) {});
+        await Future<void>.microtask(() {});
+
+        const itemToPush = TestModel(id: '123', msg: 'StreamedValue');
+        watchableSource.watchController.add(
+          ReadSuccess(itemToPush, details: watchOp.details),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        // Read through SourceList with getById
+        final getResult = await sourceList.getById(
+          gro('123', RequestDetails()),
+        );
+        expect(getResult, isA<ReadSuccess<TestModel>>());
+        final success = getResult as ReadSuccess<TestModel>;
+        expect(success.item?.msg, 'StreamedValue');
+
+        await sub.cancel();
+      },
+    );
+
     test('throw StateError if no WatchableSource found for request', () {
-      final op = gro('123', RequestDetails(requestType: RequestType.local));
+      final op = gwo_watch(
+        '123',
+        RequestDetails(requestType: RequestType.local),
+      );
       // Local request will ignore the remote CountingWatchableSource
       expect(() => sourceList.watch(op), throwsA(isA<StateError>()));
     });
 
     test('propagate failures from inner source', () async {
-      final op = gro('123', RequestDetails());
+      final op = gwo_watch('123', RequestDetails());
       final stream = sourceList.watch(op);
 
       ReadResult<TestModel>? lastResult;
@@ -275,7 +298,7 @@ void main() {
     });
 
     test('cache items into LocalSources', () async {
-      final op = grlo(RequestDetails());
+      final op = gwlo_watch(RequestDetails());
       final stream = sourceList.watchList(op);
       final sub = stream.listen((_) {});
       await Future<void>.microtask(() {});
@@ -312,6 +335,41 @@ void main() {
       await sub.cancel();
     });
 
+    test(
+      'result in cache hits for subsequent SourceList.getItems calls',
+      () async {
+        final watchOp = gwlo_watch(RequestDetails());
+        final stream = sourceList.watchList(watchOp);
+        final sub = stream.listen((_) {});
+        await Future<void>.microtask(() {});
+
+        const item1 = TestModel(id: '1', msg: 'StreamedList1');
+        const item2 = TestModel(id: '2', msg: 'StreamedList2');
+        watchableSource.watchListController.add(
+          ReadListResult.fromList(
+                [item1, item2],
+                watchOp.details,
+                const {},
+                (i) => i.id,
+              )
+              as ReadListSuccess<TestModel>,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final getItemsResult = await sourceList.getItems(
+          grlo(RequestDetails()),
+        );
+        expect(getItemsResult, isA<ReadListSuccess<TestModel>>());
+        final success = getItemsResult as ReadListSuccess<TestModel>;
+        expect(
+          success.items.map((i) => i.msg),
+          containsAll(['StreamedList1', 'StreamedList2']),
+        );
+
+        await sub.cancel();
+      },
+    );
+
     test('remove missing values from local sources', () async {
       final localOp = grlo(
         RequestDetails(filter: const MsgStartsWithFilter('old')),
@@ -325,7 +383,9 @@ void main() {
       final cacheCheck = await cacheSource.getItems(localOp);
       expect((cacheCheck as ReadListSuccess<TestModel>).items, hasLength(2));
 
-      final op = grlo(RequestDetails(filter: const MsgStartsWithFilter('old')));
+      final op = gwlo_watch(
+        RequestDetails(filter: const MsgStartsWithFilter('old')),
+      );
       final stream = sourceList.watchList(op);
       final sub = stream.listen((_) {});
       await Future<void>.microtask(() {});
@@ -374,7 +434,9 @@ void main() {
       final cacheCheck = await cacheSource.getItems(localOp);
       expect((cacheCheck as ReadListSuccess).items, isNotEmpty);
 
-      final op = grlo(RequestDetails(filter: const MsgStartsWithFilter('old')));
+      final op = gwlo_watch(
+        RequestDetails(filter: const MsgStartsWithFilter('old')),
+      );
       final stream = sourceList.watchList(op);
       final sub = stream.listen((_) {});
       await Future<void>.microtask(() {});
@@ -395,10 +457,10 @@ void main() {
     test(
       'never cross the streams (in accordance with Ghostbusters lore)',
       () async {
-        final op1 = grlo(
+        final op1 = gwlo_watch(
           RequestDetails(filter: const MsgStartsWithFilter('key1')),
         );
-        final op2 = grlo(
+        final op2 = gwlo_watch(
           RequestDetails(filter: const MsgStartsWithFilter('key2')),
         );
 
@@ -471,7 +533,7 @@ void main() {
       );
       expect((cacheCheck as ReadSuccess).item, isNotNull);
 
-      final op = grido({'missing-id', 'found-id'}, RequestDetails());
+      final op = gwbido({'missing-id', 'found-id'}, RequestDetails());
       final stream = sourceList.watchByIds(op);
       final sub = stream.listen((_) {});
       await Future<void>.microtask(() {});
@@ -514,7 +576,7 @@ void main() {
         gwo(const TestModel(id: 'missing-id', msg: 'A'), RequestDetails()),
       );
 
-      final op = grido(
+      final op = gwbido(
         {'missing-id'},
         RequestDetails(requestType: RequestType.local),
       );
@@ -542,6 +604,42 @@ void main() {
 
       await sub.cancel();
     });
+
+    test(
+      'result in cache hits for subsequent SourceList.getByIds calls',
+      () async {
+        final watchOp = gwbido({'id1', 'id2'}, RequestDetails());
+        final stream = sourceList.watchByIds(watchOp);
+        final sub = stream.listen((_) {});
+        await Future<void>.microtask(() {});
+
+        const item1 = TestModel(id: 'id1', msg: 'StreamedById1');
+        const item2 = TestModel(id: 'id2', msg: 'StreamedById2');
+        watchableSource.watchByIdsController.add(
+          ReadListResult.fromList(
+                [item1, item2],
+                watchOp.details,
+                const {},
+                (i) => i.id,
+              )
+              as ReadListSuccess<TestModel>,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final getByIdsResult = await sourceList.getByIds(
+          grido({'id1', 'id2'}, RequestDetails()),
+        );
+        expect(getByIdsResult, isA<ReadListSuccess<TestModel>>());
+        final success = getByIdsResult as ReadListSuccess<TestModel>;
+        expect(
+          success.items.map((i) => i.msg),
+          containsAll(['StreamedById1', 'StreamedById2']),
+        );
+        expect(success.missingItemIds, isEmpty);
+
+        await sub.cancel();
+      },
+    );
   });
 
   group('SourceList structure should', () {

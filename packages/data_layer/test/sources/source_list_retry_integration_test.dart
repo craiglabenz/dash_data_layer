@@ -15,6 +15,7 @@ class MockConnectivityService extends Mock implements ConnectivityService {}
 
 void main() {
   setUpAll(() {
+    registerFallbackValue(SourceOperationType.getById);
     registerFallbackValue(gro('1', RequestDetails()));
     registerFallbackValue(grlo(RequestDetails()));
     registerFallbackValue(grido({'1'}, RequestDetails()));
@@ -41,6 +42,7 @@ void main() {
 
       when(() => source.hasBindings).thenReturn(true);
       when(() => source.sourceType).thenReturn(SourceType.remote);
+      when(() => source.supports(any())).thenReturn(true);
 
       when(
         retryPolicy.onRetryOperation,

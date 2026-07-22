@@ -315,29 +315,9 @@ void main() {
     });
 
     test(
-      'sendMessage defers to remote server by returning WriteFailure',
-      () async {
-        final msgOp = SendMessageOperation<TestModel>(
-          operationId: '1',
-          message: MessagePayload<String>(
-            'mock-message',
-            Bindings<String>(
-              fromJson: (_) => '',
-              toJson: (_) => {},
-              getId: (_) => null,
-            ),
-          ),
-          details: RequestDetails.write(),
-          createdAt: DateTime.now(),
-        );
-
-        final result = await source.sendMessage(msgOp);
-
-        expect(result, isA<WriteFailure<TestModel>>());
-        expect(
-          (result as WriteFailure<TestModel>).reason,
-          FailureReason.badRequest,
-        );
+      'does not implement MessageWriteMixin',
+      () {
+        expect(source, isNot(isA<MessageWriteMixin<TestModel>>()));
       },
     );
   });

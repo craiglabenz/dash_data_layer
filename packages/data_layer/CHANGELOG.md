@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.7
+
+- Removes MessageMixin from DataContract, turning messages into a fully opt-in system.
+- Refactored SourceList.sendMessage to check whether each Source mixes in MessageMixin.
+- Adds `supportedOperations` to `DataContract` to allow sources to declare operation capabilities.
+- Adds `WatchOperation`, `WatchListOperation`, and `WatchByIdsOperation` variants to `Operation`.
+
 ## 0.0.6+1
 
 - README tweaks. No functional difference from 0.0.6.

@@ -1,6 +1,6 @@
 import 'package:crypt/crypt.dart';
 import 'package:data_layer/data_layer.dart'
-    show RequestDetails, RequestDetailsConverter;
+    show RequestDetails, RequestDetailsConverter, Source;
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'operations.freezed.dart';
@@ -90,6 +90,35 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = SendMessageOperation;
 
+  /// A single item watch operation.
+  const factory Operation.watch({
+    required String operationId,
+    required String itemId,
+    @RequestDetailsConverter() //
+    required RequestDetails details,
+    required DateTime createdAt,
+    @Default(0) int attemptNumber,
+  }) = WatchOperation;
+
+  /// A multi-item watch operation.
+  const factory Operation.watchList({
+    required String operationId,
+    @RequestDetailsConverter() //
+    required RequestDetails details,
+    required DateTime createdAt,
+    @Default(0) int attemptNumber,
+  }) = WatchListOperation;
+
+  /// A multi-item watch-by-ids operation.
+  const factory Operation.watchByIds({
+    required String operationId,
+    required Set<String> itemIds,
+    @RequestDetailsConverter() //
+    required RequestDetails details,
+    required DateTime createdAt,
+    @Default(0) int attemptNumber,
+  }) = WatchByIdsOperation;
+
   factory Operation.fromJson(
     Map<String, dynamic> json,
     T Function(Object?) fromJsonT,
@@ -102,7 +131,10 @@ sealed class Operation<T> with _$Operation<T> {
   bool get isRead => switch (this) {
     ReadOperation<T>() ||
     ReadListOperation<T>() ||
-    ReadByIdsOperation<T>() => true,
+    ReadByIdsOperation<T>() ||
+    WatchOperation<T>() ||
+    WatchListOperation<T>() ||
+    WatchByIdsOperation<T>() => true,
     WriteOperation<T>() ||
     WriteListOperation<T>() ||
     DeleteOperation<T>() ||
@@ -115,7 +147,8 @@ sealed class Operation<T> with _$Operation<T> {
   /// data.
   String get cacheKey {
     switch (this) {
-      case ReadOperation<T>(:final itemId, :final details):
+      case ReadOperation<T>(:final itemId, :final details) ||
+          WatchOperation<T>(:final itemId, :final details):
         return Crypt.sha256(
           '$itemId-${details.cacheKey}',
           rounds: 1,
@@ -133,7 +166,7 @@ sealed class Operation<T> with _$Operation<T> {
           rounds: 1,
           salt: 'delete-op',
         ).toString();
-      case ReadListOperation<T>():
+      case ReadListOperation<T>() || WatchListOperation<T>():
         // [details.cacheKey] contains all relevant information for this
         // operation, including pagination and filters.
         return Crypt.sha256(
@@ -148,7 +181,8 @@ sealed class Operation<T> with _$Operation<T> {
           rounds: 1,
           salt: 'write-list-op',
         ).toString();
-      case ReadByIdsOperation<T>(:final itemIds, :final details):
+      case ReadByIdsOperation<T>(:final itemIds, :final details) ||
+          WatchByIdsOperation<T>(:final itemIds, :final details):
         final sortedIds = itemIds.toList()..sort();
         return Crypt.sha256(
           '${sortedIds.join('-')}-${details.cacheKey}',
@@ -176,7 +210,9 @@ sealed class Operation<T> with _$Operation<T> {
         'Setting forceInsert to true for ReadOperations is invalid',
       );
     }
-    if (requestType == .allLocal && this is! ReadListOperation) {
+    if (requestType == .allLocal &&
+        this is! ReadListOperation &&
+        this is! WatchListOperation) {
       throw StateError(
         'RequestType.allLocal is only valid in getItems method. '
         'Other methods are unlikely to honor this request, as its '
@@ -193,4 +229,51 @@ sealed class Operation<T> with _$Operation<T> {
 
   /// True if this operation is a write.
   bool get isWrite => !isRead;
+
+  /// The [SourceOperationType] corresponding to this [Operation].
+  SourceOperationType get type => switch (this) {
+    ReadOperation<T>() => SourceOperationType.getById,
+    ReadListOperation<T>() => SourceOperationType.getItems,
+    ReadByIdsOperation<T>() => SourceOperationType.getByIds,
+    WriteOperation<T>() => SourceOperationType.setItem,
+    WriteListOperation<T>() => SourceOperationType.setItems,
+    DeleteOperation<T>() => SourceOperationType.delete,
+    SendMessageOperation<T>() => SourceOperationType.sendMessage,
+    WatchOperation<T>() => SourceOperationType.watch,
+    WatchListOperation<T>() => SourceOperationType.watchList,
+    WatchByIdsOperation<T>() => SourceOperationType.watchByIds,
+  };
+}
+
+/// Operations supported by a [Source].
+enum SourceOperationType {
+  /// Operation to get a single item by its ID.
+  getById,
+
+  /// Operation to get multiple items by their IDs.
+  getByIds,
+
+  /// Operation to get multiple items.
+  getItems,
+
+  /// Operation to write a single item.
+  setItem,
+
+  /// Operation to write multiple items.
+  setItems,
+
+  /// Operation to delete a single item by its ID.
+  delete,
+
+  /// Operation to send a message.
+  sendMessage,
+
+  /// Operation to watch a single item.
+  watch,
+
+  /// Operation to watch multiple items.
+  watchList,
+
+  /// Operation to watch multiple items by their IDs.
+  watchByIds,
 }
