@@ -8,6 +8,7 @@ Provides Firestore Admin bindings for `pkg:data_layer` using `pkg:google_cloud_f
 - Compatible with `pkg:data_layer` source interfaces (`FirestoreAdminSource`, `FirestoreAdminFilter`)
 - Support for server timestamp fields (`onCreateServerTimestampFields`, `onUpdateServerTimestampFields`)
 - Automatic conversion between Firestore Timestamps and DateTime ISO 8601 strings
+- Untyped document merges via `.raw(id, map)`
 
 ## Usage
 
@@ -20,5 +21,13 @@ final source = FirestoreAdminSource<MyModel>(
   firestore,
   bindings: myModelBindings,
   collectionName: 'my_collection',
+  onCreateServerTimestampFields: ['createdAt'],
+  onUpdateServerTimestampFields: ['updatedAt'],
 );
+
+// Perform an untyped merge directly into a document
+await source.raw('doc_123', {
+  'status': 'processed',
+  'processedAt': DateTime.now(),
+});
 ```

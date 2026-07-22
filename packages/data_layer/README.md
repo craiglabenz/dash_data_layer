@@ -35,6 +35,8 @@ Additionally, a single method exists for DTOs:
 
 The primary class from `pkg:data_layer` which the rest of your app will encounter is `Repository`, which defaults to defining handlers for all of the above methods, but may decide to define only a subset if appropriate for a given use case. (For example, a read-only data endpoint may throw `UnimplementedError` exceptions for `setItem`, `setItems`, and `deleteItem`.)
 
+Each `DataContract` and `Source` declares its capabilities via `supportedOperations` (a set of `SourceOperationType` values). The `SourceList` automatically checks `source.supports(operation.type)` and skips any source that does not support the requested operation.
+
 Within a `Repository` is the all-important `SourceList`, which manages juggling data between an arbitrary list of `Source` objects. The `SourceList` class is the core of `pkg:data_layer`. You should not need to subclass or alter its behavior, as any special behavior should be coded into the `Repository` or `Source` layers.
 
 Understanding the `SourceList` is key to understanding `pkg:data_layer`. See the [detailed description of the `SourceList`](#understanding-the-sourcelist) below.

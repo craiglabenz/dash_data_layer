@@ -16,7 +16,7 @@ SourceList(
     FirestoreSource(
       FirebaseFirestore.instance,
       bindings: User.bindings,
-      collectionPath: 'users',
+      collectionName: 'users',
     ),
   ],
 )
