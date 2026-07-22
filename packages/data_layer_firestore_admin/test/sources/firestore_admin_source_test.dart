@@ -435,6 +435,53 @@ void main() {
       });
     });
 
+    group('raw', () {
+      test('merges json map with SetOptions.merge()', () async {
+        final mockDoc = MockDocumentReference();
+        when(() => mockCollection.doc('raw-doc')).thenReturn(mockDoc);
+        when(
+          () => mockDoc.set(any(), options: const gcf.SetOptions.merge()),
+        ).thenAnswer((_) async => MockWriteResult());
+
+        await source.raw('raw-doc', {
+          'field1': 'val1',
+          'field2': 123,
+        });
+
+        final captured =
+            verify(
+              () => mockDoc.set(
+                captureAny(),
+                options: const gcf.SetOptions.merge(),
+              ),
+            ).captured.single as Map<String, dynamic>;
+        expect(captured['field1'], 'val1');
+        expect(captured['field2'], 123);
+      });
+
+      test('cleans date fields in raw map before write', () async {
+        final mockDoc = MockDocumentReference();
+        when(() => mockCollection.doc('date-doc')).thenReturn(mockDoc);
+        when(
+          () => mockDoc.set(any(), options: const gcf.SetOptions.merge()),
+        ).thenAnswer((_) async => MockWriteResult());
+
+        final now = DateTime.utc(2024, 5, 20);
+        await source.raw('date-doc', {
+          'timestamp': now,
+        });
+
+        final captured =
+            verify(
+              () => mockDoc.set(
+                captureAny(),
+                options: const gcf.SetOptions.merge(),
+              ),
+            ).captured.single as Map<String, dynamic>;
+        expect(captured['timestamp'], isA<gcf.Timestamp>());
+      });
+    });
+
     group('unsupported watch methods', () {
       test('watch throws UnimplementedError', () {
         final operation = WatchOperation<TestModel>(

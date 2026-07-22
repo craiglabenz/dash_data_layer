@@ -230,6 +230,24 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
         );
   }
 
+  /// Merges an arbitrary [Json] map into the document with [id].
+  Future<void> raw(String id, Json map) async {
+    final dataToWrite = cleanDataForWrite(map);
+    try {
+      await collection.doc(id).set(dataToWrite, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      _log.severe(
+        'Failed to merge raw data into $collectionName/$id: ${e.message}',
+      );
+      rethrow;
+    } on Exception catch (e) {
+      _log.severe(
+        'Uncaught error merging raw data into $collectionName/$id: $e',
+      );
+      rethrow;
+    }
+  }
+
   @override
   SourceType sourceType = .remote;
 

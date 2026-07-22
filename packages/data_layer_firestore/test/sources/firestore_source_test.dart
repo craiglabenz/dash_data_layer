@@ -224,6 +224,51 @@ void main() {
       });
     });
 
+    group('raw', () {
+      test('merges json map into existing document', () async {
+        final doc = await collection.add({
+          'name': 'Original Name',
+          'age': 30,
+        });
+
+        await source.raw(doc.id, {
+          'age': 31,
+          'city': 'San Francisco',
+        });
+
+        final stored = await collection.doc(doc.id).get();
+        expect(stored.data()!['name'], 'Original Name');
+        expect(stored.data()!['age'], 31);
+        expect(stored.data()!['city'], 'San Francisco');
+      });
+
+      test('creates document if it does not exist', () async {
+        await source.raw('new-doc-id', {
+          'name': 'New Document',
+          'status': 'active',
+        });
+
+        final stored = await collection.doc('new-doc-id').get();
+        expect(stored.exists, isTrue);
+        expect(stored.data()!['name'], 'New Document');
+        expect(stored.data()!['status'], 'active');
+      });
+
+      test('cleans date fields in raw map before write', () async {
+        final now = DateTime.utc(2024, 5, 20);
+        await source.raw('doc-with-date', {
+          'timestamp': now,
+        });
+
+        final stored = await collection.doc('doc-with-date').get();
+        expect(stored.data()!['timestamp'], isA<Timestamp>());
+        expect(
+          (stored.data()!['timestamp']! as Timestamp).toDate(),
+          equals(now.toLocal()),
+        );
+      });
+    });
+
     group('cleanData', () {
       test('converts root-level Timestamps to ISO 8601 strings', () {
         final timestamp = Timestamp.fromDate(DateTime.utc(2024));
