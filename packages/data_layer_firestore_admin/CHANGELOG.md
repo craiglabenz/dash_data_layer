@@ -4,4 +4,4 @@
 
 ## 0.0.1
 
-- Initial release of `pkg:data_layer_firestore_admin`.
+- Initial release of `pkg:data_layer_firestore_admin` providing `FirestoreAdminSource` using `google_cloud_firestore`.
