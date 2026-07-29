@@ -77,7 +77,7 @@ class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
   };
 
   @override
-  Future<WriteResult<T>> sendMessage(
+  Future<WriteResult<T?>> sendMessage(
     SendMessageOperation<T> operation,
   ) async {
     if (sendMessageHandler == null) {
@@ -85,10 +85,10 @@ class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
     }
     try {
       final obj = await sendMessageHandler!.call(operation);
-      return WriteSuccess<T>(obj as T, details: operation.details);
+      return WriteSuccess<T?>(obj, details: operation.details);
     } on Exception catch (e) {
       _log.severe(e);
-      return WriteFailure<T>(
+      return WriteFailure<T?>(
         FailureReason.serverError,
         'Failed to send message',
       );

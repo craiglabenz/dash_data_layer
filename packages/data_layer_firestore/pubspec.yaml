@@ -1,7 +1,7 @@
 name: data_layer_firestore
 description: Provides Firestore-specific bindings for pkg:data_layer.
 repository: https://github.com/craiglabenz/dash_data_layer
-version: 0.0.1
+version: 0.0.3
 
 environment:
   sdk: ^3.10.0
@@ -9,7 +9,7 @@ environment:
 
 dependencies:
   cloud_firestore: ^6.3.0
-  data_layer: ^0.0.6
+  data_layer: ^0.0.8
   firebase_core: ^4.7.0
   flutter:
     sdk: flutter

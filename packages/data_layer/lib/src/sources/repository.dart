@@ -306,9 +306,9 @@ class MessageRepository<T, M> extends Repository<T> {
       ),
     );
     switch (result) {
-      case WriteSuccess<T>():
+      case WriteSuccess<T?>():
         return result.item;
-      case WriteFailure<T>():
+      case WriteFailure<T?>():
         return null;
     }
   }

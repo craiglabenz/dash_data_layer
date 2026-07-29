@@ -158,7 +158,7 @@ void main() {
             createdAt: DateTime.now(),
           ),
         );
-        expect(sendMsgResult, isA<WriteSuccess<TestModel>>());
+        expect(sendMsgResult, isA<WriteSuccess<TestModel?>>());
         expect(writeOnlySendMessageCalled, isTrue);
       },
     );
