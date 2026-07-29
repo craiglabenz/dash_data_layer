@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3
+
+- Updates `sendMessage` return type from `T` to `T?`.
+
 ## 0.0.2-rc.1
 
 - Adds HiveOperationPersistence to support long-lived storage of retries.

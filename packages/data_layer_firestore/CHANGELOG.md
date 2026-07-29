@@ -1,3 +1,9 @@
+# Changelog
+
+## 0.0.3
+
+- Updates `sendMessage` return type from `T` to `T?`.
+
 ## 0.0.2
 
 * Adds `raw` method to Firestore source for untyped merges.
