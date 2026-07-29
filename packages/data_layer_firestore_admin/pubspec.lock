@@ -100,10 +100,11 @@ packages:
   data_layer:
     dependency: "direct main"
     description:
-      path: "../data_layer"
-      relative: true
-    source: path
-    version: "0.0.6+1"
+      name: data_layer
+      sha256: ba5769c83937a65a51153afa84177a2f3ee7c65e3a786374d88be497d780b5e5
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.7"
   equatable:
     dependency: transitive
     description:
