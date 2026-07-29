@@ -634,20 +634,20 @@ class SourceList<T> extends DataContract<T>
   }
 
   @override
-  Future<WriteResult<T>> sendMessage(
+  Future<WriteResult<T?>> sendMessage(
     SendMessageOperation<T> operation,
   ) async {
-    return _guarded<WriteResult<T>>(
+    return _guarded<WriteResult<T?>>(
       operation,
       () => _sendMessage(operation),
-      () => WriteFailure<T>(.connectivity, 'The device is offline.'),
+      () => WriteFailure<T?>(.connectivity, 'The device is offline.'),
     );
   }
 
-  Future<WriteResult<T>> _sendMessage(
+  Future<WriteResult<T?>> _sendMessage(
     SendMessageOperation<T> operation,
   ) async {
-    WriteResult<T>? finalResult;
+    WriteResult<T?>? finalResult;
 
     final emptySources = getSources(requestType: operation.details.requestType)
         .where((ms) => !ms.unmatched && ms.source is LocalSource)
@@ -675,22 +675,24 @@ class SourceList<T> extends DataContract<T>
       }
     }
 
-    if (finalResult is WriteSuccess<T>) {
-      if (bindings.getId(finalResult.item) != null) {
-        await _cacheItem(
-          emptySources,
-          WriteOperation<T>(
-            operationId: operation.operationId,
-            details: operation.details,
-            item: finalResult.item,
-            createdAt: operation.createdAt,
-          ),
-        );
+    if (finalResult is WriteSuccess<T?>) {
+      if (finalResult.item case final item?) {
+        if (bindings.getId(item) != null) {
+          await _cacheItem(
+            emptySources,
+            WriteOperation<T>(
+              operationId: operation.operationId,
+              details: operation.details,
+              item: item,
+              createdAt: operation.createdAt,
+            ),
+          );
+        }
       }
     }
 
     return finalResult ??
-        WriteFailure<T>(
+        WriteFailure<T?>(
           FailureReason.serverError,
           'No source successfully sent the message.',
         );

@@ -51,7 +51,7 @@ mixin WriteMixin<T> {
 /// Introduces message operations for creation and generic updates.
 mixin MessageWriteMixin<T> on DataContract<T> {
   /// Sends a message object (e.g. for patching or decoupled creations).
-  Future<WriteResult<T>> sendMessage(SendMessageOperation<T> operation);
+  Future<WriteResult<T?>> sendMessage(SendMessageOperation<T> operation);
 
   @override
   Set<SourceOperationType> get supportedOperations => {

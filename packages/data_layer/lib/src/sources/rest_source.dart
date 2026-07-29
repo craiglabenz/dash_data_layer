@@ -286,11 +286,11 @@ class RestSource<T> extends Source<T> with MessageWriteMixin<T> {
   }
 
   @override
-  Future<WriteResult<T>> sendMessage(
+  Future<WriteResult<T?>> sendMessage(
     SendMessageOperation<T> operation,
   ) async {
     if (operation.message is! MessagePayload) {
-      return WriteFailure<T>(
+      return WriteFailure<T?>(
         FailureReason.badRequest,
         'Message must be wrapped in MessagePayload',
       );
@@ -312,14 +312,14 @@ class RestSource<T> extends Source<T> with MessageWriteMixin<T> {
       case ApiSuccess():
         final responseItem = hydrateItemResponse(result);
         if (responseItem == null) {
-          return WriteFailure<T>(
+          return WriteFailure<T?>(
             FailureReason.serverError,
             'Failed to parse sent message response',
           );
         }
-        return WriteSuccess<T>(responseItem, details: operation.details);
+        return WriteSuccess<T?>(responseItem, details: operation.details);
       case ApiError():
-        return WriteResult.fromApiError(result);
+        return WriteResult<T?>.fromApiError(result);
     }
   }
 
