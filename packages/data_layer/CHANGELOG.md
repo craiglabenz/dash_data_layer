@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.8
+
+- Changes `sendMessage` return type from `T` to `T?`.
+
 ## 0.0.7
 
 - Removes MessageMixin from DataContract, turning messages into a fully opt-in system.
