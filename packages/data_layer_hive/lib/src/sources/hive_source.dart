@@ -124,13 +124,22 @@ class HiveCache<T> extends SourceCache<T> with ReadinessMixin<void> {
 
   @override
   Future<Map<String, T>> multiRead(Set<String> keys) async {
-    _log.finest('Deleting $keys');
+    _log.finest('Reading $keys');
     final box = await this.box;
     final results = <String, T>{};
     for (final key in keys) {
-      final item = box.get(key);
-      if (item != null) {
-        results[key] = item;
+      try {
+        final item = box.get(key);
+        if (item != null) {
+          results[key] = item;
+        }
+      } on Object catch (e, stackTrace) {
+        _log.warning(
+          'Failed to read key "$key" from box "$name", deleting key',
+          e,
+          stackTrace,
+        );
+        await delete(key);
       }
     }
     return results;
@@ -145,15 +154,51 @@ class HiveCache<T> extends SourceCache<T> with ReadinessMixin<void> {
   @override
   Future<T?> read(String key) async {
     _log.finest('Reading $key');
-    return (await box).get(key);
+    final box = await this.box;
+    try {
+      return box.get(key);
+    } on Object catch (e, stackTrace) {
+      _log.warning(
+        'Failed to read key "$key" from box "$name", deleting key',
+        e,
+        stackTrace,
+      );
+      await delete(key);
+      return null;
+    }
   }
 
   @override
-  Future<Map<String, T>> readAll() {
+  Future<Map<String, T>> readAll() async {
     _log.finest('Reading all');
-    return box.then(
-      (b) => b.toMap().cast<String, T>(),
-    );
+    final box = await this.box;
+    try {
+      return box.toMap().cast<String, T>();
+    } on Object catch (e, stackTrace) {
+      _log.warning(
+        'Failed to read all from box "$name" via toMap(), '
+        'falling back to key-by-key read',
+        e,
+        stackTrace,
+      );
+      final results = <String, T>{};
+      for (final key in box.keys.cast<String>()) {
+        try {
+          final item = box.get(key);
+          if (item != null) {
+            results[key] = item;
+          }
+        } on Object catch (e, stackTrace) {
+          _log.warning(
+            'Failed to read key "$key" from box "$name", deleting key',
+            e,
+            stackTrace,
+          );
+          await delete(key);
+        }
+      }
+      return results;
+    }
   }
 
   @override

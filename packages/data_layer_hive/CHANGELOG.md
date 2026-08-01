@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.4
+
+- Improves handling of schema changes by wrapping all reads in a try-catch and evicting keys that fail to deserialize.
+
 ## 0.0.3
 
 - Updates `sendMessage` return type from `T` to `T?`.

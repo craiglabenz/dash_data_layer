@@ -315,6 +315,45 @@ void main() {
     });
 
     test(
+      'getById deletes key and returns null if deserialization throws',
+      () async {
+        when(() => mockItemsBox.get('corrupt_id')).thenThrow(TypeError());
+        when(
+          () => mockItemsBox.delete('corrupt_id'),
+        ).thenAnswer((_) => Future.value());
+
+        final readResult = await source.getById(gro('corrupt_id', details));
+        expect(readResult, isSuccess);
+        expect(readResult.itemOrRaise(), isNull);
+        verify(() => mockItemsBox.delete('corrupt_id')).called(1);
+      },
+    );
+
+    test(
+      'readAll falls back to key-by-key and evicts failed keys if toMap throws',
+      () async {
+        final validItem = TestModel.randomId();
+
+        when(mockItemsBox.toMap).thenThrow(TypeError());
+        when(() => mockItemsBox.keys).thenReturn(['corrupt_id', validItem.id]);
+        when(() => mockItemsBox.get('corrupt_id')).thenThrow(TypeError());
+        when(() => mockItemsBox.get(validItem.id)).thenReturn(validItem);
+        when(
+          () => mockItemsBox.delete('corrupt_id'),
+        ).thenAnswer((_) => Future.value());
+        when(mockItemsExpiryBox.toMap).thenReturn({});
+
+        final readResult = await source.getItems(
+          grlo(RequestDetails(requestType: .allLocal)),
+        );
+
+        expect(readResult, isSuccess);
+        expect(readResult.itemsOrRaise(), [validItem]);
+        verify(() => mockItemsBox.delete('corrupt_id')).called(1);
+      },
+    );
+
+    test(
       'does not implement MessageWriteMixin',
       () {
         expect(source, isNot(isA<MessageWriteMixin<TestModel>>()));

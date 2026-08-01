@@ -1,6 +1,6 @@
 name: data_layer_hive
 description: Hive implementation of DataLayer.
-version: 0.0.3
+version: 0.0.4
 repository: https://github.com/craiglabenz/dash_data_layer
 
 topics:
