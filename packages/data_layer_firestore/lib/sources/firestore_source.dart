@@ -217,17 +217,44 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
       throw UnimplementedError();
 
   @override
-  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) {
-    return _guarded(() => _delete(operation), operation);
+  Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation) {
+    return _guarded(() => _deleteItem(operation), operation);
   }
 
-  Future<DeleteResult<T>> _delete(DeleteOperation<T> operation) {
+  Future<DeleteResult<T>> _deleteItem(DeleteOperation<T> operation) {
     return collection
         .doc(operation.itemId)
         .delete()
         .then(
           (_) => DeleteSuccess<T>(operation.details),
         );
+  }
+
+  @override
+  Future<DeleteResult<T>> deleteItems(DeleteListOperation<T> operation) =>
+      _guarded(() => _deleteItems(operation), operation);
+
+  Future<DeleteResult<T>> _deleteItems(DeleteListOperation<T> operation) async {
+    Query<Json> query = collection;
+    if (operation.details.filter != null) {
+      if (operation.details.filter is! FirestoreFilter) {
+        throw UnsupportedError(
+          'Filter ${operation.details.filter.runtimeType} is not supported',
+        );
+      }
+      query = (operation.details.filter! as FirestoreFilter).apply(query);
+    }
+    final snapshot = await query.get();
+    if (snapshot.docs.isNotEmpty) {
+      for (final chunk in snapshot.docs.chunks(500)) {
+        final batch = firestore.batch();
+        for (final doc in chunk) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+    }
+    return DeleteSuccess<T>(operation.details);
   }
 
   /// Merges an arbitrary [Json] map into the document with [id].
@@ -490,6 +517,7 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
       WriteListOperation<T>() => 'Failed to write $collectionName',
       DeleteOperation<T>() =>
         'Failed to delete $collectionName/${operation.itemId}',
+      DeleteListOperation<T>() => 'Failed to delete $collectionName',
       SendMessageOperation<T>() => 'Failed to send message to $collectionName',
       WatchOperation<T>() =>
         'Failed to watch $collectionName/${operation.itemId}',

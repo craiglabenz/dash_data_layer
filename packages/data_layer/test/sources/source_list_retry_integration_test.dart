@@ -49,7 +49,6 @@ void main() {
       ).thenAnswer((_) => retryController.stream);
       when(() => connectivityService.listen(any())).thenAnswer((invocation) {
         final callback =
-            // ignore: avoid_positional_boolean_parameters
             invocation.positionalArguments[0] as void Function(bool);
         return connectivityController.stream.listen(callback);
       });
@@ -230,7 +229,7 @@ void main() {
         final retryOp = op.retry<DeleteOperation<TestModel>>();
 
         final completer = Completer<void>();
-        when(() => source.delete(retryOp)).thenAnswer((_) async {
+        when(() => source.deleteItem(retryOp)).thenAnswer((_) async {
           completer.complete();
           return DeleteSuccess<TestModel>(RequestDetails());
         });
@@ -238,7 +237,7 @@ void main() {
         retryController.add(retryOp);
 
         await completer.future.timeout(const Duration(seconds: 1));
-        verify(() => source.delete(retryOp)).called(1);
+        verify(() => source.deleteItem(retryOp)).called(1);
       });
     });
 

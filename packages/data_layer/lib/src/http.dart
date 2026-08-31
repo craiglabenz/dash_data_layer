@@ -3,6 +3,9 @@ class HttpStatus {
   /// 200 OK
   static const int ok = 200;
 
+  /// 204 No Content
+  static const int noContent = 204;
+
   /// 400 Bad Request
   static const int badRequest = 400;
 

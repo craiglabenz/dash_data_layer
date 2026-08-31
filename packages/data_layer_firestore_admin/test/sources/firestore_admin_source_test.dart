@@ -73,6 +73,8 @@ class MockQuery extends Mock implements gcf.Query<gcf.DocumentData> {
 
 class MockWriteResult extends Mock implements gcf.WriteResult {}
 
+class MockWriteBatch extends Mock implements gcf.WriteBatch {}
+
 // Concrete FirestoreAdminFilter for testing
 class TestAdminFilter extends Filter with FirestoreAdminFilter {
   const TestAdminFilter(this.filterFn);
@@ -416,7 +418,7 @@ void main() {
       });
     });
 
-    group('delete', () {
+    group('deleteItem', () {
       test('deletes document successfully', () async {
         final mockDoc = MockDocumentReference();
         when(() => mockCollection.doc('doc1')).thenReturn(mockDoc);
@@ -429,9 +431,36 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final result = await source.delete(operation);
+        final result = await source.deleteItem(operation);
         expect(result, isA<DeleteSuccess<TestModel>>());
         verify(mockDoc.delete).called(1);
+      });
+    });
+
+    group('deleteItems', () {
+      test('deletes matching documents in batch successfully', () async {
+        final mockQuerySnapshot = MockQuerySnapshot();
+        final mockDocSnapshot = MockQueryDocumentSnapshot();
+        final mockDocRef = MockDocumentReference();
+        final mockBatch = MockWriteBatch();
+
+        when(() => mockDocSnapshot.id).thenReturn('doc1');
+        when(() => mockCollection.doc('doc1')).thenReturn(mockDocRef);
+        when(() => mockQuerySnapshot.docs).thenReturn([mockDocSnapshot]);
+        when(mockCollection.get).thenAnswer((_) async => mockQuerySnapshot);
+        when(mockFirestore.batch).thenReturn(mockBatch);
+        when(mockBatch.commit).thenAnswer((_) async => [MockWriteResult()]);
+
+        final operation = DeleteListOperation<TestModel>(
+          operationId: 'delListAdmin1',
+          details: RequestDetails(),
+          createdAt: DateTime.now(),
+        );
+
+        final result = await source.deleteItems(operation);
+        expect(result, isA<DeleteSuccess<TestModel>>());
+        verify(() => mockBatch.delete(mockDocRef)).called(1);
+        verify(mockBatch.commit).called(1);
       });
     });
 
@@ -450,11 +479,12 @@ void main() {
 
         final captured =
             verify(
-              () => mockDoc.set(
-                captureAny(),
-                options: const gcf.SetOptions.merge(),
-              ),
-            ).captured.single as Map<String, dynamic>;
+                  () => mockDoc.set(
+                    captureAny(),
+                    options: const gcf.SetOptions.merge(),
+                  ),
+                ).captured.single
+                as Map<String, dynamic>;
         expect(captured['field1'], 'val1');
         expect(captured['field2'], 123);
       });
@@ -473,11 +503,12 @@ void main() {
 
         final captured =
             verify(
-              () => mockDoc.set(
-                captureAny(),
-                options: const gcf.SetOptions.merge(),
-              ),
-            ).captured.single as Map<String, dynamic>;
+                  () => mockDoc.set(
+                    captureAny(),
+                    options: const gcf.SetOptions.merge(),
+                  ),
+                ).captured.single
+                as Map<String, dynamic>;
         expect(captured['timestamp'], isA<gcf.Timestamp>());
       });
     });
@@ -643,43 +674,43 @@ void main() {
       });
 
       test('does not convert non-ISO strings to Timestamps', () {
-      final data = {
-        'name': 'Test User',
-        'email': 'test@example.com',
-        'shortDate': '2024-05-15',
-        'title': 'Developer',
-      };
-      final cleaned = FirestoreAdminSource.cleanDataForWrite(data);
-      expect(cleaned['name'], equals('Test User'));
-      expect(cleaned['email'], equals('test@example.com'));
-      expect(cleaned['shortDate'], equals('2024-05-15'));
-      expect(cleaned['title'], equals('Developer'));
-    });
+        final data = {
+          'name': 'Test User',
+          'email': 'test@example.com',
+          'shortDate': '2024-05-15',
+          'title': 'Developer',
+        };
+        final cleaned = FirestoreAdminSource.cleanDataForWrite(data);
+        expect(cleaned['name'], equals('Test User'));
+        expect(cleaned['email'], equals('test@example.com'));
+        expect(cleaned['shortDate'], equals('2024-05-15'));
+        expect(cleaned['title'], equals('Developer'));
+      });
 
-    test('converts ISO 8601 strings with various formats to Timestamps', () {
-      final data = {
-        'isoWithMs': '2024-05-15T10:30:00.123Z',
-        'isoNoMs': '2024-05-15T10:30:00Z',
-        'isoLocal': '2024-05-15T10:30:00',
-      };
-      final cleaned = FirestoreAdminSource.cleanDataForWrite(data);
-      expect(cleaned['isoWithMs'], isA<gcf.Timestamp>());
-      expect(cleaned['isoNoMs'], isA<gcf.Timestamp>());
-      expect(cleaned['isoLocal'], isA<gcf.Timestamp>());
-    });
+      test('converts ISO 8601 strings with various formats to Timestamps', () {
+        final data = {
+          'isoWithMs': '2024-05-15T10:30:00.123Z',
+          'isoNoMs': '2024-05-15T10:30:00Z',
+          'isoLocal': '2024-05-15T10:30:00',
+        };
+        final cleaned = FirestoreAdminSource.cleanDataForWrite(data);
+        expect(cleaned['isoWithMs'], isA<gcf.Timestamp>());
+        expect(cleaned['isoNoMs'], isA<gcf.Timestamp>());
+        expect(cleaned['isoLocal'], isA<gcf.Timestamp>());
+      });
 
-    test('returns same object if empty', () {
-      final data = <String, dynamic>{};
-      final cleaned = FirestoreAdminSource.cleanDataForWrite(data);
-      expect(cleaned, same(data));
-    });
+      test('returns same object if empty', () {
+        final data = <String, dynamic>{};
+        final cleaned = FirestoreAdminSource.cleanDataForWrite(data);
+        expect(cleaned, same(data));
+      });
 
-    test('returns same object if no DateTimes found', () {
-      final data = {'name': 'Test', 'count': 1};
-      final cleaned = FirestoreAdminSource.cleanDataForWrite(data);
-      expect(cleaned, same(data));
+      test('returns same object if no DateTimes found', () {
+        final data = {'name': 'Test', 'count': 1};
+        final cleaned = FirestoreAdminSource.cleanDataForWrite(data);
+        expect(cleaned, same(data));
+      });
     });
-  });
 
     group('exception handling', () {
       test('logs and rethrows FirestoreException', () async {

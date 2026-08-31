@@ -30,11 +30,45 @@ void main() {
       );
       expect(
         partialProxy.supportedOperations,
+        isNot(contains(SourceOperationType.deleteItems)),
+      );
+      expect(
+        partialProxy.supportedOperations,
         isNot(contains(SourceOperationType.sendMessage)),
       );
 
       expect(partialProxy.supports(SourceOperationType.getById), isTrue);
       expect(partialProxy.supports(SourceOperationType.setItem), isFalse);
+      expect(partialProxy.supports(SourceOperationType.deleteItems), isFalse);
+    });
+
+    test('includes deleteItems when deleteItemsHandler is provided', () async {
+      var called = false;
+      final proxy = ProxySource<TestModel>(
+        bindings: TestModel.bindings,
+        sourceType: SourceType.remote,
+        deleteItemsHandler: (op) async {
+          called = true;
+          return DeleteSuccess<TestModel>(op.details);
+        },
+      );
+
+      expect(
+        proxy.supportedOperations,
+        contains(SourceOperationType.deleteItems),
+      );
+      expect(proxy.supports(SourceOperationType.deleteItems), isTrue);
+
+      final details = RequestDetails.write();
+      final result = await proxy.deleteItems(
+        DeleteListOperation<TestModel>(
+          operationId: 'del1',
+          details: details,
+          createdAt: DateTime.now(),
+        ),
+      );
+      expect(result, isSuccess);
+      expect(called, isTrue);
     });
 
     test(

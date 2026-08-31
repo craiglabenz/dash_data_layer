@@ -64,19 +64,22 @@ class RestApi {
     if (forceEndingSlash && !url.endsWith('/')) {
       url = '$url/';
     }
-    if (request is ReadApiRequest &&
-        request.params != null &&
-        request.params!.isNotEmpty) {
-      url = '$url${Uri(queryParameters: request.params)}';
+    final params = switch (request) {
+      ReadApiRequest(:final params) => params,
+      WriteApiRequest(:final params) => params,
+      _ => null,
+    };
+    if (params != null && params.isNotEmpty) {
+      url = '$url${Uri(queryParameters: params)}';
     }
     return url;
   }
 
   /// Sends a DELETE request via the [RequestDelegate].
-  Future<ApiResult> delete(WriteApiRequest request) async {
+  Future<ApiResult> deleteItem(WriteApiRequest request) async {
     final headers = getDefaultHeaders()..addAll(request.headers);
 
-    final result = await _delegate.delete(
+    final result = await _delegate.deleteItem(
       _finishUrl(request),
       headers: headers,
     );

@@ -79,6 +79,15 @@ sealed class Operation<T> with _$Operation<T> {
     @Default(0) int attemptNumber,
   }) = DeleteOperation;
 
+  /// A multi-item delete operation.
+  const factory Operation.deleteItems({
+    required String operationId,
+    @RequestDetailsConverter() //
+    required RequestDetails details,
+    required DateTime createdAt,
+    @Default(0) int attemptNumber,
+  }) = DeleteListOperation;
+
   /// A generic message operation for sending an object creation or update.
   const factory Operation.sendMessage({
     required String operationId,
@@ -138,6 +147,7 @@ sealed class Operation<T> with _$Operation<T> {
     WriteOperation<T>() ||
     WriteListOperation<T>() ||
     DeleteOperation<T>() ||
+    DeleteListOperation<T>() ||
     SendMessageOperation<T>() => false,
   };
 
@@ -165,6 +175,12 @@ sealed class Operation<T> with _$Operation<T> {
           '$itemId-${details.cacheKey}',
           rounds: 1,
           salt: 'delete-op',
+        ).toString();
+      case DeleteListOperation<T>(:final details):
+        return Crypt.sha256(
+          details.cacheKey,
+          rounds: 1,
+          salt: 'delete-list-op',
         ).toString();
       case ReadListOperation<T>() || WatchListOperation<T>():
         // [details.cacheKey] contains all relevant information for this
@@ -238,6 +254,7 @@ sealed class Operation<T> with _$Operation<T> {
     WriteOperation<T>() => SourceOperationType.setItem,
     WriteListOperation<T>() => SourceOperationType.setItems,
     DeleteOperation<T>() => SourceOperationType.delete,
+    DeleteListOperation<T>() => SourceOperationType.deleteItems,
     SendMessageOperation<T>() => SourceOperationType.sendMessage,
     WatchOperation<T>() => SourceOperationType.watch,
     WatchListOperation<T>() => SourceOperationType.watchList,
@@ -264,6 +281,9 @@ enum SourceOperationType {
 
   /// Operation to delete a single item by its ID.
   delete,
+
+  /// Operation to delete multiple items matching a request.
+  deleteItems,
 
   /// Operation to send a message.
   sendMessage,

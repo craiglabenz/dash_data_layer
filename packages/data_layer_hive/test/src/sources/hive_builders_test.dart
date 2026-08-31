@@ -101,7 +101,7 @@ void main() {
 
       when(() => mockRequestBox.keys).thenReturn([]);
 
-      final deleteResult = await source.delete(gdo(item.id!, details));
+      final deleteResult = await source.deleteItem(gdo(item.id!, details));
       expect(deleteResult, isSuccess);
       verify(() => mockItemsBox.deleteAll(any())).called(1);
     });

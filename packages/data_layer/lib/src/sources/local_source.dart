@@ -287,12 +287,26 @@ class LocalSource<T> extends Source<T> {
   }
 
   @override
-  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
+  Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation) async {
     assert(
       operation.details.requestType.includes(sourceType),
       'Should not route ${operation.details.requestType} request to $this',
     );
     await deleteIds({operation.itemId});
+    return DeleteSuccess<T>(operation.details);
+  }
+
+  @override
+  Future<DeleteResult<T>> deleteItems(DeleteListOperation<T> operation) async {
+    assert(
+      operation.details.requestType.includes(sourceType),
+      'Should not route ${operation.details.requestType} request to $this',
+    );
+    final cachedIds = await _requestCache.read(operation.details.cacheKey);
+    if (cachedIds != null && cachedIds.isNotEmpty) {
+      await deleteIds(cachedIds);
+    }
+    await clearForRequest(operation.details);
     return DeleteSuccess<T>(operation.details);
   }
 }
