@@ -366,7 +366,7 @@ void main() {
       when(
         mockPaginatedRequestCache.readAll,
       ).thenAnswer((_) async => <CacheKey, Set<String>>{});
-      await source.delete(gdo(item.id!, details));
+      await source.deleteItem(gdo(item.id!, details));
       verify(
         () => mockItemsCache.multiDelete(<String>{item.id!}),
       ).called(1);
@@ -395,7 +395,7 @@ void main() {
         () => mockRequestCache.delete(details.cacheKey),
       ).thenAnswer((_) async {});
 
-      await source.delete(gdo(item.id!, details));
+      await source.deleteItem(gdo(item.id!, details));
 
       // The item was deleted
       verify(
@@ -436,7 +436,7 @@ void main() {
         () => mockRequestCache.write(details.cacheKey, {item2.id!}),
       ).thenAnswer((_) async {});
 
-      await source.delete(gdo(item.id!, details));
+      await source.deleteItem(gdo(item.id!, details));
 
       // The item was deleted
       verify(

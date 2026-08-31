@@ -217,11 +217,11 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
       throw UnimplementedError();
 
   @override
-  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) {
-    return _guarded(() => _delete(operation), operation);
+  Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation) {
+    return _guarded(() => _deleteItem(operation), operation);
   }
 
-  Future<DeleteResult<T>> _delete(DeleteOperation<T> operation) {
+  Future<DeleteResult<T>> _deleteItem(DeleteOperation<T> operation) {
     return collection
         .doc(operation.itemId)
         .delete()

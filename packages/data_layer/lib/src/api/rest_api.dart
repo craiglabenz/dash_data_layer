@@ -73,10 +73,10 @@ class RestApi {
   }
 
   /// Sends a DELETE request via the [RequestDelegate].
-  Future<ApiResult> delete(WriteApiRequest request) async {
+  Future<ApiResult> deleteItem(WriteApiRequest request) async {
     final headers = getDefaultHeaders()..addAll(request.headers);
 
-    final result = await _delegate.delete(
+    final result = await _delegate.deleteItem(
       _finishUrl(request),
       headers: headers,
     );

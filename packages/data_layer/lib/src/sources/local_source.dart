@@ -287,7 +287,7 @@ class LocalSource<T> extends Source<T> {
   }
 
   @override
-  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
+  Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation) async {
     assert(
       operation.details.requestType.includes(sourceType),
       'Should not route ${operation.details.requestType} request to $this',

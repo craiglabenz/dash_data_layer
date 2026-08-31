@@ -145,7 +145,7 @@ void main() {
         expect(writeOnlySetItemsCalled, isTrue);
 
         // --- 6. delete ---
-        final deleteResult = await sourceList.delete(gdo('123', details));
+        final deleteResult = await sourceList.deleteItem(gdo('123', details));
         expect(deleteResult, isA<DeleteSuccess<TestModel>>());
         expect(writeOnlyDeleteCalled, isTrue);
 
@@ -180,7 +180,7 @@ void main() {
         );
         expect(setItemResult, isA<WriteSuccess<TestModel>>());
 
-        final deleteResult = await sourceList.delete(gdo('1', details));
+        final deleteResult = await sourceList.deleteItem(gdo('1', details));
         expect(deleteResult, isA<DeleteSuccess<TestModel>>());
 
         // Read operations succeed

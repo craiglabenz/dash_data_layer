@@ -719,18 +719,18 @@ class SourceList<T> extends DataContract<T>
   }
 
   @override
-  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
+  Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation) async {
     return _guarded<DeleteResult<T>>(
       operation,
-      () => _delete(operation),
+      () => _deleteItem(operation),
       () => DeleteFailure<T>(.connectivity, 'The device is offline.'),
     );
   }
 
-  Future<DeleteResult<T>> _delete(DeleteOperation<T> operation) async {
+  Future<DeleteResult<T>> _deleteItem(DeleteOperation<T> operation) async {
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched || !ms.source.supports(operation.type)) continue;
-      final result = await ms.source.delete(operation);
+      final result = await ms.source.deleteItem(operation);
       if (result is DeleteFailure<T>) {
         return result;
       }
@@ -785,7 +785,7 @@ class SourceList<T> extends DataContract<T>
       case WriteListOperation<T>():
         await setItems(operation);
       case DeleteOperation<T>():
-        await delete(operation);
+        await deleteItem(operation);
       case SendMessageOperation<T>():
         await sendMessage(operation);
       case WatchOperation<T>():

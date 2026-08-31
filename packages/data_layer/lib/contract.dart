@@ -45,7 +45,7 @@ mixin WriteMixin<T> {
   Future<WriteListResult<T>> setItems(WriteListOperation<T> operation);
 
   /// Clears an item with the given [DeleteOperation.itemId] if one exists.
-  Future<DeleteResult<T>> delete(DeleteOperation<T> operation);
+  Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation);
 }
 
 /// Introduces message operations for creation and generic updates.

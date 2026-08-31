@@ -59,7 +59,7 @@ class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
   /// If supplied, used to satisfy [setItems].
   final SetItems<T>? setItemsHandler;
 
-  /// If supplied, used to satisfy [delete].
+  /// If supplied, used to satisfy [deleteItem].
   final DeleteItem<T>? deleteHandler;
 
   /// If supplied, used to satisfy [sendMessage].
@@ -96,12 +96,12 @@ class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
   }
 
   @override
-  Future<DeleteResult<T>> delete(DeleteOperation<T> operation) async {
+  Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation) async {
     if (deleteHandler == null) {
       throw UnimplementedError();
     }
     try {
-      return deleteHandler!.call(operation);
+      return await deleteHandler!.call(operation);
     } on Exception catch (e) {
       _log.severe(e);
       return DeleteFailure<T>(

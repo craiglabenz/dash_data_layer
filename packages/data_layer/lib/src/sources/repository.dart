@@ -230,9 +230,9 @@ class Repository<T> with ReadinessMixin<void> {
   }
 
   /// Removes the item associated with the given [id] from persistence.
-  Future<void> delete(String id, {RequestDetails? details}) async {
+  Future<void> deleteItem(String id, {RequestDetails? details}) async {
     await ready;
-    await sourceList.delete(
+    await sourceList.deleteItem(
       DeleteOperation<T>(
         operationId: generateOperationId(),
         itemId: id,
