@@ -256,7 +256,9 @@ void main() {
     });
 
     test('NOT honor pagination', () async {
-      when(() => mockItemsCache.write(item.id!, item)).thenAnswer((_) async {});
+      when(
+        () => mockItemsCache.write(item.id!, item),
+      ).thenAnswer((_) async {});
       await source.setItem(gwo(item, paginationDetails));
       verifyNever(
         () => mockRequestCache.write(paginationDetails.cacheKey, any()),
@@ -452,6 +454,32 @@ void main() {
       ).called(1);
     });
 
+    test('deleteItems deletes cached items and clears request', () async {
+      when(
+        () => mockRequestCache.read(details.cacheKey),
+      ).thenAnswer((_) async => <String>{item.id!, item2.id!});
+      when(
+        () => mockItemsCache.multiDelete(<String>{item.id!, item2.id!}),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockRequestCache.readAll(),
+      ).thenAnswer((_) async => <CacheKey, Set<String>>{});
+      when(
+        mockPaginatedRequestCache.readAll,
+      ).thenAnswer((_) async => <CacheKey, Set<String>>{});
+      when(
+        () => mockRequestCache.delete(details.cacheKey),
+      ).thenAnswer((_) async {});
+
+      final result = await source.deleteItems(gdlo(details));
+      expect(result, isSuccess);
+
+      verify(
+        () => mockItemsCache.multiDelete(<String>{item.id!, item2.id!}),
+      ).called(1);
+      verify(() => mockRequestCache.delete(details.cacheKey)).called(1);
+    });
+
     test('delete items clear pagination clusters', () async {
       when(
         () => mockItemsCache.multiDelete(<String>{item.id!, item2.id!}),
@@ -468,7 +496,9 @@ void main() {
       // Set up a pagination cluster that will be empty after `item` is removed
       when(mockPaginatedRequestCache.readAll).thenAnswer(
         (_) async => {
-          paginationDetails.noPaginationCacheKey: {paginationDetails.cacheKey},
+          paginationDetails.noPaginationCacheKey: {
+            paginationDetails.cacheKey,
+          },
         },
       );
       // Prepare deletion of the pagination cluster

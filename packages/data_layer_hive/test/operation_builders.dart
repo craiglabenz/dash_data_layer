@@ -60,3 +60,11 @@ DeleteOperation<TestModel> gdo(String itemId, RequestDetails details) =>
       details: details,
       createdAt: _now(),
     );
+
+/// get DeleteListOperation
+DeleteListOperation<TestModel> gdlo(RequestDetails details) =>
+    DeleteListOperation<TestModel>(
+      operationId: 'abc',
+      details: details,
+      createdAt: _now(),
+    );

@@ -19,6 +19,10 @@ typedef SetItems<T> = Future<List<T>?> Function(WriteListOperation<T>);
 /// Logic to activate `deleteItem`.
 typedef DeleteItem<T> = Future<DeleteResult<T>> Function(DeleteOperation<T>);
 
+/// Logic to activate `deleteItems`.
+typedef DeleteItems<T> =
+    Future<DeleteResult<T>> Function(DeleteListOperation<T>);
+
 /// Logic to activate `sendMessage`.
 typedef SendMessage<T> = Future<T?> Function(SendMessageOperation<T>);
 
@@ -39,6 +43,7 @@ class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
     this.setItemHandler,
     this.setItemsHandler,
     this.deleteHandler,
+    this.deleteItemsHandler,
     this.sendMessageHandler,
   });
 
@@ -62,6 +67,9 @@ class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
   /// If supplied, used to satisfy [deleteItem].
   final DeleteItem<T>? deleteHandler;
 
+  /// If supplied, used to satisfy [deleteItems].
+  final DeleteItems<T>? deleteItemsHandler;
+
   /// If supplied, used to satisfy [sendMessage].
   final SendMessage<T>? sendMessageHandler;
 
@@ -73,6 +81,7 @@ class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
     if (setItemHandler != null) SourceOperationType.setItem,
     if (setItemsHandler != null) SourceOperationType.setItems,
     if (deleteHandler != null) SourceOperationType.delete,
+    if (deleteItemsHandler != null) SourceOperationType.deleteItems,
     if (sendMessageHandler != null) SourceOperationType.sendMessage,
   };
 
@@ -107,6 +116,22 @@ class ProxySource<T> extends Source<T> with MessageWriteMixin<T> {
       return DeleteFailure<T>(
         FailureReason.serverError,
         'Failed to delete $T with Id ${operation.itemId}',
+      );
+    }
+  }
+
+  @override
+  Future<DeleteResult<T>> deleteItems(DeleteListOperation<T> operation) async {
+    if (deleteItemsHandler == null) {
+      throw UnimplementedError();
+    }
+    try {
+      return await deleteItemsHandler!.call(operation);
+    } on Exception catch (e) {
+      _log.severe(e);
+      return DeleteFailure<T>(
+        FailureReason.serverError,
+        'Failed to delete $T items',
       );
     }
   }

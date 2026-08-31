@@ -595,6 +595,7 @@ class SourceList<T> extends DataContract<T>
 
   @override
   Future<WriteResult<T>> setItem(WriteOperation<T> operation) async {
+    operation.details.assertNoFilter('SourceList<$T>.setItem');
     return _guarded<WriteResult<T>>(
       operation,
       () => _setItem(operation),
@@ -637,6 +638,7 @@ class SourceList<T> extends DataContract<T>
   Future<WriteResult<T?>> sendMessage(
     SendMessageOperation<T> operation,
   ) async {
+    operation.details.assertNoFilter('SourceList<$T>.sendMessage');
     return _guarded<WriteResult<T?>>(
       operation,
       () => _sendMessage(operation),
@@ -720,6 +722,7 @@ class SourceList<T> extends DataContract<T>
 
   @override
   Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation) async {
+    operation.details.assertNoFilter('SourceList<$T>.deleteItem');
     return _guarded<DeleteResult<T>>(
       operation,
       () => _deleteItem(operation),
@@ -731,6 +734,26 @@ class SourceList<T> extends DataContract<T>
     for (final ms in getSources(requestType: operation.details.requestType)) {
       if (ms.unmatched || !ms.source.supports(operation.type)) continue;
       final result = await ms.source.deleteItem(operation);
+      if (result is DeleteFailure<T>) {
+        return result;
+      }
+    }
+    return DeleteSuccess<T>(operation.details);
+  }
+
+  @override
+  Future<DeleteResult<T>> deleteItems(DeleteListOperation<T> operation) async {
+    return _guarded<DeleteResult<T>>(
+      operation,
+      () => _deleteItems(operation),
+      () => DeleteFailure<T>(.connectivity, 'The device is offline.'),
+    );
+  }
+
+  Future<DeleteResult<T>> _deleteItems(DeleteListOperation<T> operation) async {
+    for (final ms in getSources(requestType: operation.details.requestType)) {
+      if (ms.unmatched || !ms.source.supports(operation.type)) continue;
+      final result = await ms.source.deleteItems(operation);
       if (result is DeleteFailure<T>) {
         return result;
       }
@@ -786,6 +809,8 @@ class SourceList<T> extends DataContract<T>
         await setItems(operation);
       case DeleteOperation<T>():
         await deleteItem(operation);
+      case DeleteListOperation<T>():
+        await deleteItems(operation);
       case SendMessageOperation<T>():
         await sendMessage(operation);
       case WatchOperation<T>():

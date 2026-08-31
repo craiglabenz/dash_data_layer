@@ -101,6 +101,11 @@ class CountingWatchableSource extends Source<TestModel>
   ) async => throw UnimplementedError();
 
   @override
+  Future<DeleteResult<TestModel>> deleteItems(
+    DeleteListOperation<TestModel> operation,
+  ) async => throw UnimplementedError();
+
+  @override
   Future<ReadResult<TestModel>> getById(
     ReadOperation<TestModel> operation,
   ) async => throw UnimplementedError();

@@ -80,10 +80,14 @@ class WriteApiRequest extends ApiRequest {
     required this.body,
     super.user,
     super.headers,
+    this.params,
   });
 
   /// Request payload in serialized JSON format.
   final Json? body;
+
+  /// Optional query parameters for this request.
+  final Params? params;
 }
 
 /// {@template AuthenticatedReadApiRequest}
@@ -96,5 +100,6 @@ class AuthenticatedWriteApiRequest extends WriteApiRequest {
     required super.url,
     super.headers,
     super.body,
+    super.params,
   });
 }

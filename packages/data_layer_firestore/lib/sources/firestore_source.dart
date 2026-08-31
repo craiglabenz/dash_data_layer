@@ -230,6 +230,33 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
         );
   }
 
+  @override
+  Future<DeleteResult<T>> deleteItems(DeleteListOperation<T> operation) =>
+      _guarded(() => _deleteItems(operation), operation);
+
+  Future<DeleteResult<T>> _deleteItems(DeleteListOperation<T> operation) async {
+    Query<Json> query = collection;
+    if (operation.details.filter != null) {
+      if (operation.details.filter is! FirestoreFilter) {
+        throw UnsupportedError(
+          'Filter ${operation.details.filter.runtimeType} is not supported',
+        );
+      }
+      query = (operation.details.filter! as FirestoreFilter).apply(query);
+    }
+    final snapshot = await query.get();
+    if (snapshot.docs.isNotEmpty) {
+      for (final chunk in snapshot.docs.chunks(500)) {
+        final batch = firestore.batch();
+        for (final doc in chunk) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+    }
+    return DeleteSuccess<T>(operation.details);
+  }
+
   /// Merges an arbitrary [Json] map into the document with [id].
   Future<void> raw(String id, Json map) async {
     final dataToWrite = cleanDataForWrite(map);
@@ -490,6 +517,7 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
       WriteListOperation<T>() => 'Failed to write $collectionName',
       DeleteOperation<T>() =>
         'Failed to delete $collectionName/${operation.itemId}',
+      DeleteListOperation<T>() => 'Failed to delete $collectionName',
       SendMessageOperation<T>() => 'Failed to send message to $collectionName',
       WatchOperation<T>() =>
         'Failed to watch $collectionName/${operation.itemId}',

@@ -64,10 +64,13 @@ class RestApi {
     if (forceEndingSlash && !url.endsWith('/')) {
       url = '$url/';
     }
-    if (request is ReadApiRequest &&
-        request.params != null &&
-        request.params!.isNotEmpty) {
-      url = '$url${Uri(queryParameters: request.params)}';
+    final params = switch (request) {
+      ReadApiRequest(:final params) => params,
+      WriteApiRequest(:final params) => params,
+      _ => null,
+    };
+    if (params != null && params.isNotEmpty) {
+      url = '$url${Uri(queryParameters: params)}';
     }
     return url;
   }

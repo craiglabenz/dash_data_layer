@@ -224,6 +224,64 @@ void main() {
       });
     });
 
+    group('deleteItem', () {
+      test('deletes existing document successfully', () async {
+        final doc = await collection.add({'name': 'To Delete'});
+        final operation = DeleteOperation<TestModel>(
+          operationId: 'del1',
+          itemId: doc.id,
+          details: RequestDetails.write(),
+          createdAt: DateTime.now(),
+        );
+
+        final result = await source.deleteItem(operation);
+        expect(result, isA<DeleteSuccess<TestModel>>());
+
+        final stored = await collection.doc(doc.id).get();
+        expect(stored.exists, isFalse);
+      });
+    });
+
+    group('deleteItems', () {
+      test('deletes all documents when no filter specified', () async {
+        await collection.add({'name': 'Item 1'});
+        await collection.add({'name': 'Item 2'});
+
+        final operation = DeleteListOperation<TestModel>(
+          operationId: 'delList1',
+          details: RequestDetails.delete(),
+          createdAt: DateTime.now(),
+        );
+
+        final result = await source.deleteItems(operation);
+        expect(result, isA<DeleteSuccess<TestModel>>());
+
+        final remaining = await collection.get();
+        expect(remaining.docs, isEmpty);
+      });
+
+      test('deletes only matching documents when filter specified', () async {
+        await collection.add({'name': 'Delete Me', 'type': 'A'});
+        final doc2 = await collection.add({'name': 'Keep Me', 'type': 'B'});
+
+        final filter = TestFilter(
+          (query) => query.where('type', isEqualTo: 'A'),
+        );
+        final operation = DeleteListOperation<TestModel>(
+          operationId: 'delList2',
+          details: RequestDetails.delete(filter: filter),
+          createdAt: DateTime.now(),
+        );
+
+        final result = await source.deleteItems(operation);
+        expect(result, isA<DeleteSuccess<TestModel>>());
+
+        final remaining = await collection.get();
+        expect(remaining.docs.length, 1);
+        expect(remaining.docs.first.id, doc2.id);
+      });
+    });
+
     group('raw', () {
       test('merges json map into existing document', () async {
         final doc = await collection.add({

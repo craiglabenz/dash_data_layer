@@ -39,6 +39,10 @@ Operation<T> _$OperationFromJson<T>(
           return DeleteOperation<T>.fromJson(
             json,fromJsonT
           );
+                case 'deleteItems':
+          return DeleteListOperation<T>.fromJson(
+            json,fromJsonT
+          );
                 case 'sendMessage':
           return SendMessageOperation<T>.fromJson(
             json,fromJsonT
@@ -148,7 +152,7 @@ extension OperationPatterns<T> on Operation<T> {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( ReadOperation<T> value)?  getItem,TResult Function( ReadListOperation<T> value)?  getItems,TResult Function( ReadByIdsOperation<T> value)?  getByIds,TResult Function( WriteOperation<T> value)?  setItem,TResult Function( WriteListOperation<T> value)?  setItems,TResult Function( DeleteOperation<T> value)?  delete,TResult Function( SendMessageOperation<T> value)?  sendMessage,TResult Function( WatchOperation<T> value)?  watch,TResult Function( WatchListOperation<T> value)?  watchList,TResult Function( WatchByIdsOperation<T> value)?  watchByIds,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( ReadOperation<T> value)?  getItem,TResult Function( ReadListOperation<T> value)?  getItems,TResult Function( ReadByIdsOperation<T> value)?  getByIds,TResult Function( WriteOperation<T> value)?  setItem,TResult Function( WriteListOperation<T> value)?  setItems,TResult Function( DeleteOperation<T> value)?  delete,TResult Function( DeleteListOperation<T> value)?  deleteItems,TResult Function( SendMessageOperation<T> value)?  sendMessage,TResult Function( WatchOperation<T> value)?  watch,TResult Function( WatchListOperation<T> value)?  watchList,TResult Function( WatchByIdsOperation<T> value)?  watchByIds,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case ReadOperation() when getItem != null:
@@ -157,7 +161,8 @@ return getItems(_that);case ReadByIdsOperation() when getByIds != null:
 return getByIds(_that);case WriteOperation() when setItem != null:
 return setItem(_that);case WriteListOperation() when setItems != null:
 return setItems(_that);case DeleteOperation() when delete != null:
-return delete(_that);case SendMessageOperation() when sendMessage != null:
+return delete(_that);case DeleteListOperation() when deleteItems != null:
+return deleteItems(_that);case SendMessageOperation() when sendMessage != null:
 return sendMessage(_that);case WatchOperation() when watch != null:
 return watch(_that);case WatchListOperation() when watchList != null:
 return watchList(_that);case WatchByIdsOperation() when watchByIds != null:
@@ -179,7 +184,7 @@ return watchByIds(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( ReadOperation<T> value)  getItem,required TResult Function( ReadListOperation<T> value)  getItems,required TResult Function( ReadByIdsOperation<T> value)  getByIds,required TResult Function( WriteOperation<T> value)  setItem,required TResult Function( WriteListOperation<T> value)  setItems,required TResult Function( DeleteOperation<T> value)  delete,required TResult Function( SendMessageOperation<T> value)  sendMessage,required TResult Function( WatchOperation<T> value)  watch,required TResult Function( WatchListOperation<T> value)  watchList,required TResult Function( WatchByIdsOperation<T> value)  watchByIds,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( ReadOperation<T> value)  getItem,required TResult Function( ReadListOperation<T> value)  getItems,required TResult Function( ReadByIdsOperation<T> value)  getByIds,required TResult Function( WriteOperation<T> value)  setItem,required TResult Function( WriteListOperation<T> value)  setItems,required TResult Function( DeleteOperation<T> value)  delete,required TResult Function( DeleteListOperation<T> value)  deleteItems,required TResult Function( SendMessageOperation<T> value)  sendMessage,required TResult Function( WatchOperation<T> value)  watch,required TResult Function( WatchListOperation<T> value)  watchList,required TResult Function( WatchByIdsOperation<T> value)  watchByIds,}){
 final _that = this;
 switch (_that) {
 case ReadOperation():
@@ -188,7 +193,8 @@ return getItems(_that);case ReadByIdsOperation():
 return getByIds(_that);case WriteOperation():
 return setItem(_that);case WriteListOperation():
 return setItems(_that);case DeleteOperation():
-return delete(_that);case SendMessageOperation():
+return delete(_that);case DeleteListOperation():
+return deleteItems(_that);case SendMessageOperation():
 return sendMessage(_that);case WatchOperation():
 return watch(_that);case WatchListOperation():
 return watchList(_that);case WatchByIdsOperation():
@@ -206,7 +212,7 @@ return watchByIds(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( ReadOperation<T> value)?  getItem,TResult? Function( ReadListOperation<T> value)?  getItems,TResult? Function( ReadByIdsOperation<T> value)?  getByIds,TResult? Function( WriteOperation<T> value)?  setItem,TResult? Function( WriteListOperation<T> value)?  setItems,TResult? Function( DeleteOperation<T> value)?  delete,TResult? Function( SendMessageOperation<T> value)?  sendMessage,TResult? Function( WatchOperation<T> value)?  watch,TResult? Function( WatchListOperation<T> value)?  watchList,TResult? Function( WatchByIdsOperation<T> value)?  watchByIds,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( ReadOperation<T> value)?  getItem,TResult? Function( ReadListOperation<T> value)?  getItems,TResult? Function( ReadByIdsOperation<T> value)?  getByIds,TResult? Function( WriteOperation<T> value)?  setItem,TResult? Function( WriteListOperation<T> value)?  setItems,TResult? Function( DeleteOperation<T> value)?  delete,TResult? Function( DeleteListOperation<T> value)?  deleteItems,TResult? Function( SendMessageOperation<T> value)?  sendMessage,TResult? Function( WatchOperation<T> value)?  watch,TResult? Function( WatchListOperation<T> value)?  watchList,TResult? Function( WatchByIdsOperation<T> value)?  watchByIds,}){
 final _that = this;
 switch (_that) {
 case ReadOperation() when getItem != null:
@@ -215,7 +221,8 @@ return getItems(_that);case ReadByIdsOperation() when getByIds != null:
 return getByIds(_that);case WriteOperation() when setItem != null:
 return setItem(_that);case WriteListOperation() when setItems != null:
 return setItems(_that);case DeleteOperation() when delete != null:
-return delete(_that);case SendMessageOperation() when sendMessage != null:
+return delete(_that);case DeleteListOperation() when deleteItems != null:
+return deleteItems(_that);case SendMessageOperation() when sendMessage != null:
 return sendMessage(_that);case WatchOperation() when watch != null:
 return watch(_that);case WatchListOperation() when watchList != null:
 return watchList(_that);case WatchByIdsOperation() when watchByIds != null:
@@ -236,7 +243,7 @@ return watchByIds(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItem,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItems,TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getByIds,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)?  setItem,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)?  setItems,TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  delete,TResult Function( String operationId,  Object message, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  String? targetId,  int attemptNumber)?  sendMessage,TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watch,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watchList,TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watchByIds,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItem,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItems,TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getByIds,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)?  setItem,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)?  setItems,TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  delete,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  deleteItems,TResult Function( String operationId,  Object message, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  String? targetId,  int attemptNumber)?  sendMessage,TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watch,TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watchList,TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watchByIds,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case ReadOperation() when getItem != null:
 return getItem(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case ReadListOperation() when getItems != null:
@@ -244,7 +251,8 @@ return getItems(_that.operationId,_that.details,_that.createdAt,_that.attemptNum
 return getByIds(_that.operationId,_that.itemIds,_that.details,_that.createdAt,_that.attemptNumber);case WriteOperation() when setItem != null:
 return setItem(_that.operationId,_that.details,_that.item,_that.createdAt,_that.attemptNumber);case WriteListOperation() when setItems != null:
 return setItems(_that.operationId,_that.details,_that.items,_that.createdAt,_that.attemptNumber);case DeleteOperation() when delete != null:
-return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case SendMessageOperation() when sendMessage != null:
+return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case DeleteListOperation() when deleteItems != null:
+return deleteItems(_that.operationId,_that.details,_that.createdAt,_that.attemptNumber);case SendMessageOperation() when sendMessage != null:
 return sendMessage(_that.operationId,_that.message,_that.details,_that.createdAt,_that.targetId,_that.attemptNumber);case WatchOperation() when watch != null:
 return watch(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case WatchListOperation() when watchList != null:
 return watchList(_that.operationId,_that.details,_that.createdAt,_that.attemptNumber);case WatchByIdsOperation() when watchByIds != null:
@@ -266,7 +274,7 @@ return watchByIds(_that.operationId,_that.itemIds,_that.details,_that.createdAt,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getItem,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getItems,required TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getByIds,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)  setItem,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)  setItems,required TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  delete,required TResult Function( String operationId,  Object message, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  String? targetId,  int attemptNumber)  sendMessage,required TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  watch,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  watchList,required TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  watchByIds,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getItem,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getItems,required TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  getByIds,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)  setItem,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)  setItems,required TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  delete,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  deleteItems,required TResult Function( String operationId,  Object message, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  String? targetId,  int attemptNumber)  sendMessage,required TResult Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  watch,required TResult Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  watchList,required TResult Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)  watchByIds,}) {final _that = this;
 switch (_that) {
 case ReadOperation():
 return getItem(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case ReadListOperation():
@@ -274,7 +282,8 @@ return getItems(_that.operationId,_that.details,_that.createdAt,_that.attemptNum
 return getByIds(_that.operationId,_that.itemIds,_that.details,_that.createdAt,_that.attemptNumber);case WriteOperation():
 return setItem(_that.operationId,_that.details,_that.item,_that.createdAt,_that.attemptNumber);case WriteListOperation():
 return setItems(_that.operationId,_that.details,_that.items,_that.createdAt,_that.attemptNumber);case DeleteOperation():
-return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case SendMessageOperation():
+return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case DeleteListOperation():
+return deleteItems(_that.operationId,_that.details,_that.createdAt,_that.attemptNumber);case SendMessageOperation():
 return sendMessage(_that.operationId,_that.message,_that.details,_that.createdAt,_that.targetId,_that.attemptNumber);case WatchOperation():
 return watch(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case WatchListOperation():
 return watchList(_that.operationId,_that.details,_that.createdAt,_that.attemptNumber);case WatchByIdsOperation():
@@ -292,7 +301,7 @@ return watchByIds(_that.operationId,_that.itemIds,_that.details,_that.createdAt,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItem,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItems,TResult? Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getByIds,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)?  setItem,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)?  setItems,TResult? Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  delete,TResult? Function( String operationId,  Object message, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  String? targetId,  int attemptNumber)?  sendMessage,TResult? Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watch,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watchList,TResult? Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watchByIds,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItem,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getItems,TResult? Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  getByIds,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  T item,  DateTime createdAt,  int attemptNumber)?  setItem,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  Iterable<T> items,  DateTime createdAt,  int attemptNumber)?  setItems,TResult? Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  delete,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  deleteItems,TResult? Function( String operationId,  Object message, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  String? targetId,  int attemptNumber)?  sendMessage,TResult? Function( String operationId,  String itemId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watch,TResult? Function( String operationId, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watchList,TResult? Function( String operationId,  Set<String> itemIds, @RequestDetailsConverter()  RequestDetails details,  DateTime createdAt,  int attemptNumber)?  watchByIds,}) {final _that = this;
 switch (_that) {
 case ReadOperation() when getItem != null:
 return getItem(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case ReadListOperation() when getItems != null:
@@ -300,7 +309,8 @@ return getItems(_that.operationId,_that.details,_that.createdAt,_that.attemptNum
 return getByIds(_that.operationId,_that.itemIds,_that.details,_that.createdAt,_that.attemptNumber);case WriteOperation() when setItem != null:
 return setItem(_that.operationId,_that.details,_that.item,_that.createdAt,_that.attemptNumber);case WriteListOperation() when setItems != null:
 return setItems(_that.operationId,_that.details,_that.items,_that.createdAt,_that.attemptNumber);case DeleteOperation() when delete != null:
-return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case SendMessageOperation() when sendMessage != null:
+return delete(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case DeleteListOperation() when deleteItems != null:
+return deleteItems(_that.operationId,_that.details,_that.createdAt,_that.attemptNumber);case SendMessageOperation() when sendMessage != null:
 return sendMessage(_that.operationId,_that.message,_that.details,_that.createdAt,_that.targetId,_that.attemptNumber);case WatchOperation() when watch != null:
 return watch(_that.operationId,_that.itemId,_that.details,_that.createdAt,_that.attemptNumber);case WatchListOperation() when watchList != null:
 return watchList(_that.operationId,_that.details,_that.createdAt,_that.attemptNumber);case WatchByIdsOperation() when watchByIds != null:
@@ -794,6 +804,85 @@ class _$DeleteOperationCopyWithImpl<T,$Res>
   return _then(DeleteOperation<T>(
 operationId: null == operationId ? _self.operationId : operationId // ignore: cast_nullable_to_non_nullable
 as String,itemId: null == itemId ? _self.itemId : itemId // ignore: cast_nullable_to_non_nullable
+as String,details: null == details ? _self.details : details // ignore: cast_nullable_to_non_nullable
+as RequestDetails,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime,attemptNumber: null == attemptNumber ? _self.attemptNumber : attemptNumber // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+@JsonSerializable(genericArgumentFactories: true)
+
+class DeleteListOperation<T> extends Operation<T> {
+  const DeleteListOperation({required this.operationId, @RequestDetailsConverter() required this.details, required this.createdAt, this.attemptNumber = 0, final  String? $type}): $type = $type ?? 'deleteItems',super._();
+  factory DeleteListOperation.fromJson(Map<String, dynamic> json,T Function(Object?) fromJsonT) => _$DeleteListOperationFromJson(json,fromJsonT);
+
+@override final  String operationId;
+@override@RequestDetailsConverter() final  RequestDetails details;
+@override final  DateTime createdAt;
+@override@JsonKey() final  int attemptNumber;
+
+@JsonKey(name: 'runtimeType')
+final String $type;
+
+
+/// Create a copy of Operation
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$DeleteListOperationCopyWith<T, DeleteListOperation<T>> get copyWith => _$DeleteListOperationCopyWithImpl<T, DeleteListOperation<T>>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson(Object? Function(T) toJsonT) {
+  return _$DeleteListOperationToJson<T>(this, toJsonT);
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DeleteListOperation<T>&&(identical(other.operationId, operationId) || other.operationId == operationId)&&(identical(other.details, details) || other.details == details)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.attemptNumber, attemptNumber) || other.attemptNumber == attemptNumber));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,operationId,details,createdAt,attemptNumber);
+
+@override
+String toString() {
+  return 'Operation<$T>.deleteItems(operationId: $operationId, details: $details, createdAt: $createdAt, attemptNumber: $attemptNumber)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $DeleteListOperationCopyWith<T,$Res> implements $OperationCopyWith<T, $Res> {
+  factory $DeleteListOperationCopyWith(DeleteListOperation<T> value, $Res Function(DeleteListOperation<T>) _then) = _$DeleteListOperationCopyWithImpl;
+@override @useResult
+$Res call({
+ String operationId,@RequestDetailsConverter() RequestDetails details, DateTime createdAt, int attemptNumber
+});
+
+
+
+
+}
+/// @nodoc
+class _$DeleteListOperationCopyWithImpl<T,$Res>
+    implements $DeleteListOperationCopyWith<T, $Res> {
+  _$DeleteListOperationCopyWithImpl(this._self, this._then);
+
+  final DeleteListOperation<T> _self;
+  final $Res Function(DeleteListOperation<T>) _then;
+
+/// Create a copy of Operation
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? operationId = null,Object? details = null,Object? createdAt = null,Object? attemptNumber = null,}) {
+  return _then(DeleteListOperation<T>(
+operationId: null == operationId ? _self.operationId : operationId // ignore: cast_nullable_to_non_nullable
 as String,details: null == details ? _self.details : details // ignore: cast_nullable_to_non_nullable
 as RequestDetails,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,attemptNumber: null == attemptNumber ? _self.attemptNumber : attemptNumber // ignore: cast_nullable_to_non_nullable

@@ -286,6 +286,24 @@ class RestSource<T> extends Source<T> with MessageWriteMixin<T> {
   }
 
   @override
+  Future<DeleteResult<T>> deleteItems(DeleteListOperation<T> operation) async {
+    final params = <String, Object?>{};
+    if (operation.details.filter != null) {
+      params.addAll(operation.details.filter!.toParams());
+    }
+    final request = WriteApiRequest(
+      url: getListUrl(),
+      body: null,
+      params: params.isNotEmpty ? params : null,
+    );
+    final result = await api.deleteItem(request);
+    return switch (result) {
+      ApiSuccess() => DeleteSuccess(operation.details),
+      ApiError() => DeleteResult.fromApiError(result),
+    };
+  }
+
+  @override
   Future<WriteResult<T?>> sendMessage(
     SendMessageOperation<T> operation,
   ) async {

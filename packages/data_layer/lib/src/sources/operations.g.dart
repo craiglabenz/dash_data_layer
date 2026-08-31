@@ -160,6 +160,30 @@ Map<String, dynamic> _$DeleteOperationToJson<T>(
   'runtimeType': instance.$type,
 };
 
+DeleteListOperation<T> _$DeleteListOperationFromJson<T>(
+  Map<String, dynamic> json,
+  T Function(Object? json) fromJsonT,
+) => DeleteListOperation<T>(
+  operationId: json['operationId'] as String,
+  details: const RequestDetailsConverter().fromJson(
+    json['details'] as Map<String, Object?>,
+  ),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  attemptNumber: (json['attemptNumber'] as num?)?.toInt() ?? 0,
+  $type: json['runtimeType'] as String?,
+);
+
+Map<String, dynamic> _$DeleteListOperationToJson<T>(
+  DeleteListOperation<T> instance,
+  Object? Function(T value) toJsonT,
+) => <String, dynamic>{
+  'operationId': instance.operationId,
+  'details': const RequestDetailsConverter().toJson(instance.details),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'attemptNumber': instance.attemptNumber,
+  'runtimeType': instance.$type,
+};
+
 SendMessageOperation<T> _$SendMessageOperationFromJson<T>(
   Map<String, dynamic> json,
   T Function(Object? json) fromJsonT,

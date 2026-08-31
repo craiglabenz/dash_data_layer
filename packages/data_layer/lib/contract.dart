@@ -46,6 +46,9 @@ mixin WriteMixin<T> {
 
   /// Clears an item with the given [DeleteOperation.itemId] if one exists.
   Future<DeleteResult<T>> deleteItem(DeleteOperation<T> operation);
+
+  /// Clears all items matching the given [DeleteListOperation.details].
+  Future<DeleteResult<T>> deleteItems(DeleteListOperation<T> operation);
 }
 
 /// Introduces message operations for creation and generic updates.
@@ -76,6 +79,7 @@ abstract class DataContract<T> with ReadMixin<T>, WriteMixin<T> {
     SourceOperationType.setItem,
     SourceOperationType.setItems,
     SourceOperationType.delete,
+    SourceOperationType.deleteItems,
   };
 
   /// Returns whether this instance supports the given [SourceOperationType].

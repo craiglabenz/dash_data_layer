@@ -61,6 +61,14 @@ DeleteOperation<TestModel> gdo(String itemId, RequestDetails details) =>
       createdAt: _now(),
     );
 
+/// get DeleteListOperation
+DeleteListOperation<TestModel> gdlo(RequestDetails details) =>
+    DeleteListOperation<TestModel>(
+      operationId: 'abc',
+      details: details,
+      createdAt: _now(),
+    );
+
 /// get WatchOperation
 // ignore: non_constant_identifier_names
 WatchOperation<TestModel> gwo_watch(String itemId, RequestDetails details) =>

@@ -354,6 +354,76 @@ void main() {
     );
 
     test(
+      'deleteItem removes item from items box and updates request box',
+      () async {
+        final item = TestModel.randomId();
+        final ids = {item.id!};
+        when(
+          () => mockItemsBox.deleteAll(ids),
+        ).thenAnswer((_) => Future.value());
+        when(
+          () => mockItemsExpiryBox.deleteAll(ids),
+        ).thenAnswer((_) => Future.value());
+        when(() => mockRequestBox.keys).thenReturn([]);
+        when(mockRequestBox.toMap).thenReturn({
+          details.cacheKey: {item.id!},
+        });
+        when(mockItemsExpiryBox.toMap).thenReturn({});
+        when(mockRequestCacheKeyExpiryBox.toMap).thenReturn({});
+        when(() => mockRequestCacheKeyExpiryBox.keys).thenReturn([]);
+        when(() => mockPaginationCacheBox.keys).thenReturn([]);
+        when(
+          () => mockRequestBox.delete(details.cacheKey),
+        ).thenAnswer((_) => Future.value());
+        when(
+          () => mockRequestCacheKeyExpiryBox.delete(details.cacheKey),
+        ).thenAnswer((_) => Future.value());
+        when(mockPaginationCacheBox.toMap).thenReturn({});
+
+        final result = await source.deleteItem(gdo(item.id!, details));
+        expect(result, isSuccess);
+        verify(() => mockItemsBox.deleteAll(ids)).called(1);
+      },
+    );
+
+    test(
+      'deleteItems purges cached items and clears request',
+      () async {
+        final item = TestModel.randomId();
+        final ids = {item.id!};
+        when(() => mockRequestBox.get(details.cacheKey)).thenReturn({item.id!});
+        when(
+          () => mockItemsBox.deleteAll(ids),
+        ).thenAnswer((_) => Future.value());
+        when(
+          () => mockItemsExpiryBox.deleteAll(ids),
+        ).thenAnswer((_) => Future.value());
+        when(() => mockRequestBox.keys).thenReturn([]);
+        when(mockRequestBox.toMap).thenReturn({
+          details.cacheKey: {item.id!},
+        });
+        when(mockItemsExpiryBox.toMap).thenReturn({});
+        when(mockRequestCacheKeyExpiryBox.toMap).thenReturn({});
+        when(() => mockRequestCacheKeyExpiryBox.keys).thenReturn([]);
+        when(() => mockPaginationCacheBox.keys).thenReturn([]);
+        when(
+          () => mockRequestBox.delete(details.cacheKey),
+        ).thenAnswer((_) => Future.value());
+        when(
+          () => mockRequestCacheKeyExpiryBox.delete(details.cacheKey),
+        ).thenAnswer((_) => Future.value());
+        when(mockPaginationCacheBox.toMap).thenReturn({});
+
+        final result = await source.deleteItems(gdlo(details));
+        expect(result, isSuccess);
+        verify(() => mockItemsBox.deleteAll(ids)).called(1);
+        verify(
+          () => mockRequestBox.delete(details.cacheKey),
+        ).called(greaterThanOrEqualTo(1));
+      },
+    );
+
+    test(
       'does not implement MessageWriteMixin',
       () {
         expect(source, isNot(isA<MessageWriteMixin<TestModel>>()));

@@ -22,6 +22,7 @@ Everything in `pkg:data_layer` resolves around satisfying the `DataContract` int
 * `setItem` - Persists a single item.
 * `setItems` - Persists a list of items.
 * `deleteItem` - Deletes a single item.
+* `deleteItems` - Deletes multiple items matching a request.
 
 Additionally, three streaming equivalents of the read methods exist:
 
@@ -33,7 +34,7 @@ Additionally, a single method exists for DTOs:
 
 * `sendMessage` - Uses a different dataclass for writes while still expecting to return the primary object type.
 
-The primary class from `pkg:data_layer` which the rest of your app will encounter is `Repository`, which defaults to defining handlers for all of the above methods, but may decide to define only a subset if appropriate for a given use case. (For example, a read-only data endpoint may throw `UnimplementedError` exceptions for `setItem`, `setItems`, and `deleteItem`.)
+The primary class from `pkg:data_layer` which the rest of your app will encounter is `Repository`, which defaults to defining handlers for all of the above methods, but may decide to define only a subset if appropriate for a given use case. (For example, a read-only data endpoint may throw `UnimplementedError` exceptions for `setItem`, `setItems`, `deleteItem`, and `deleteItems`.)
 
 Each `DataContract` and `Source` declares its capabilities via `supportedOperations` (a set of `SourceOperationType` values). The `SourceList` automatically checks `source.supports(operation.type)` and skips any source that does not support the requested operation.
 
@@ -119,7 +120,7 @@ class UserRepository extends Repository<User> {
 }
 ```
 
-The `Repository` base class provides default implementations for `getById`, `getByIds`, `getItems`, `setItem`, `setItems`, and `delete`. You can override these methods to add domain-specific logic, but often the default implementation which immediately delegates to its `SourceList` is sufficient.
+The `Repository` base class provides default implementations for `getById`, `getByIds`, `getItems`, `setItem`, `setItems`, `deleteItem`, and `deleteItems`. You can override these methods to add domain-specific logic, but often the default implementation which immediately delegates to its `SourceList` is sufficient.
 
 ## Instantiating a Repository
 

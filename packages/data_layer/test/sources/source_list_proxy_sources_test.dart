@@ -16,6 +16,7 @@ void main() {
     bool writeOnlySetItemCalled = false;
     bool writeOnlySetItemsCalled = false;
     bool writeOnlyDeleteCalled = false;
+    bool writeOnlyDeleteItemsCalled = false;
     bool writeOnlySendMessageCalled = false;
     bool partialGetByIdCalled = false;
     bool partialSetItemCalled = false;
@@ -26,6 +27,7 @@ void main() {
       writeOnlySetItemCalled = false;
       writeOnlySetItemsCalled = false;
       writeOnlyDeleteCalled = false;
+      writeOnlyDeleteItemsCalled = false;
       writeOnlySendMessageCalled = false;
       partialGetByIdCalled = false;
       partialSetItemCalled = false;
@@ -48,7 +50,7 @@ void main() {
       );
 
       // 2. Write-only ProxySource (only implements setItem, setItems, delete,
-      // sendMessage)
+      // deleteItems, sendMessage)
       writeOnlySource = ProxySource<TestModel>(
         bindings: TestModel.bindings,
         sourceType: SourceType.remote,
@@ -62,6 +64,10 @@ void main() {
         },
         deleteHandler: (op) async {
           writeOnlyDeleteCalled = true;
+          return DeleteSuccess<TestModel>(op.details);
+        },
+        deleteItemsHandler: (op) async {
+          writeOnlyDeleteItemsCalled = true;
           return DeleteSuccess<TestModel>(op.details);
         },
         sendMessageHandler: (op) async {
@@ -148,6 +154,11 @@ void main() {
         final deleteResult = await sourceList.deleteItem(gdo('123', details));
         expect(deleteResult, isA<DeleteSuccess<TestModel>>());
         expect(writeOnlyDeleteCalled, isTrue);
+
+        // --- 6b. deleteItems ---
+        final deleteItemsResult = await sourceList.deleteItems(gdlo(details));
+        expect(deleteItemsResult, isA<DeleteSuccess<TestModel>>());
+        expect(writeOnlyDeleteItemsCalled, isTrue);
 
         // --- 7. sendMessage ---
         final sendMsgResult = await sourceList.sendMessage(
