@@ -13,6 +13,7 @@ const respHeaders = <String, String>{
 RestSource<TestModel> getSrc({
   ReadHandler? readHandler,
   WriteRequestHandler? postHandler,
+  WriteRequestHandler? deleteHandler,
   ITimer? timer,
   String? resultsKey = 'results',
 }) => RestSource<TestModel>(
@@ -21,10 +22,11 @@ RestSource<TestModel> getSrc({
   getDetailUrl: (id) => ApiUrl(path: 'test/$id'),
   getListUrl: () => const ApiUrl(path: 'test/'),
   restApi: RestApi(
-    apiBaseUrl: 'https://fake.com/',
+    apiBaseUrl: 'https://fake.com',
     delegate: RequestDelegate.fake(
       readHandler: readHandler,
       postHandler: postHandler,
+      deleteHandler: deleteHandler,
     ),
     headersBuilder: () => <String, String>{
       HttpHeaders.contentTypeHeader: 'application/json',
@@ -247,6 +249,44 @@ void main() {
         grido({'abc', 'xyz'}, RequestDetails()),
       );
       expect(result, isA<ReadListFailure<TestModel>>());
+    });
+  });
+
+  group('RestSource.deleteItem', () {
+    test('sends DELETE request to detail URL', () async {
+      Uri? deletedUri;
+      final RestSource<TestModel> src = getSrc(
+        deleteHandler: (url, {body, encoding, headers}) async {
+          deletedUri = url;
+          return http.Response(
+            '',
+            HttpStatus.noContent,
+            headers: respHeaders,
+          );
+        },
+      );
+      final result = await src.deleteItem(gdo('123', RequestDetails()));
+      expect(result, isSuccess);
+      expect(deletedUri?.path, '/test/123');
+    });
+  });
+
+  group('RestSource.deleteItems', () {
+    test('sends DELETE request to list URL with params', () async {
+      Uri? deletedUri;
+      final RestSource<TestModel> src = getSrc(
+        deleteHandler: (url, {body, encoding, headers}) async {
+          deletedUri = url;
+          return http.Response(
+            '',
+            HttpStatus.noContent,
+            headers: respHeaders,
+          );
+        },
+      );
+      final result = await src.deleteItems(gdlo(RequestDetails()));
+      expect(result, isSuccess);
+      expect(deletedUri?.path, '/test/');
     });
   });
 }

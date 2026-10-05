@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.5
+
+- Matches pkg:data_layer version 0.0.9 by renaming `delete` to `deleteItem` and by adding `deleteItems`
+
 ## 0.0.4
 
 - Improves handling of schema changes by wrapping all reads in a try-catch and evicting keys that fail to deserialize.

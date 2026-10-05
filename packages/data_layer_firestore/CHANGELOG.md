@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.4
+
+- Matches pkg:data_layer version 0.0.9 by renaming `delete` to `deleteItem` and by adding `deleteItems`
+
 ## 0.0.3
 
 - Updates `sendMessage` return type from `T` to `T?`.

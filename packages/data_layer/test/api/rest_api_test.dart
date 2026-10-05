@@ -149,7 +149,7 @@ void main() {
     });
 
     test('delete sends request', () async {
-      final response = await api.delete(const TestWriteRequest());
+      final response = await api.deleteItem(const TestWriteRequest());
 
       expect(response.statusCode, 200);
       expect(capturedUri.toString(), '$baseUrl/test');

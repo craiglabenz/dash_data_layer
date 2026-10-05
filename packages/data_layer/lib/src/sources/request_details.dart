@@ -103,6 +103,17 @@ class RequestDetails extends Equatable {
     ttl: ttl,
   );
 
+  /// Delete-friendly constructor for [RequestDetails].
+  factory RequestDetails.delete({
+    RequestType requestType = defaultRequestType,
+    Filter? filter,
+    bool shouldRetry = true,
+  }) => RequestDetails(
+    requestType: requestType,
+    filter: filter,
+    shouldRetry: shouldRetry,
+  );
+
   /// Serializes this request information to send to the server.
   factory RequestDetails.fromJson(Json data) => RequestDetails(
     filter: data['filter'] != null
@@ -239,6 +250,12 @@ class RequestDetails extends Equatable {
   /// for easily seeing where this assertion was called.
   void assertEmpty(String functionName) {
     assert(isEmpty, 'Must not supply filters or pagination to $functionName');
+  }
+
+  /// Asserts that [filter] is null. The lone string parameter is useful
+  /// for easily seeing where this assertion was called.
+  void assertNoFilter(String functionName) {
+    assert(filter == null, 'Must not supply filters to $functionName');
   }
 
   /// True if this request would rather return empty data than go off-device.

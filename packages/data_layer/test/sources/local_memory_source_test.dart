@@ -419,9 +419,22 @@ void main() {
     test('remove an item', () async {
       await source.setItems(gwlo([item, item2], details));
       await fullyContains(source, [item, item2], requests: [details]);
-      await source.delete(gdo(item.id!, details));
+      await source.deleteItem(gdo(item.id!, details));
       await fullyContains(source, [item2], requests: [details]);
       await notInCache(source, [item], requests: [], containsAtAll: false);
+    });
+
+    test('remove items via deleteItems', () async {
+      await source.setItems(gwlo([item, item2], details));
+      await fullyContains(source, [item, item2], requests: [details]);
+      final result = await source.deleteItems(gdlo(details));
+      expect(result, isSuccess);
+      await notInCache(
+        source,
+        [item, item2],
+        requests: [details],
+        containsAtAll: false,
+      );
     });
 
     test('remove items', () async {

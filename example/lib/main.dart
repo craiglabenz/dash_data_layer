@@ -174,7 +174,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       IconButton.destructive(
                         icon: Icon(Icons.delete),
                         onPressed: () {
-                          _clickRepository.delete(click.id);
+                          _clickRepository.deleteItem(click.id);
                           _refreshClicks();
                         },
                       ),

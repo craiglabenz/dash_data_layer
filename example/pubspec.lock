@@ -191,14 +191,14 @@ packages:
       path: "../packages/data_layer"
       relative: true
     source: path
-    version: "0.0.7"
+    version: "0.0.8"
   data_layer_hive:
     dependency: "direct main"
     description:
       path: "../packages/data_layer_hive"
       relative: true
     source: path
-    version: "0.0.2"
+    version: "0.0.4"
   data_widget:
     dependency: transitive
     description:
@@ -746,10 +746,10 @@ packages:
     dependency: transitive
     description:
       name: vector_math
-      sha256: "1d774bbdf6b72a0b12122fc1560c9c2d2a67db5a4a4cc2bd8a5c990ab20e3188"
+      sha256: f36f9f3be64c6198714492bb455c11056e33e2f85d9a0b676a48301e44fdcf47
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.0"
+    version: "2.4.2"
   vm_service:
     dependency: transitive
     description:
@@ -823,5 +823,5 @@ packages:
     source: hosted
     version: "2.1.0"
 sdks:
-  dart: ">=3.10.0 <4.0.0"
+  dart: ">=3.11.0-0 <4.0.0"
   flutter: ">=3.35.0"

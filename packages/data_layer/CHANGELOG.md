@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.9
+
+- Renames `delete` to `deleteItem` for consistency.
+- Adds `deleteItems` for multi-delete.
+
 ## 0.0.8
 
 - Changes `sendMessage` return type from `T` to `T?`.

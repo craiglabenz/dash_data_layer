@@ -133,7 +133,7 @@ class RequestDelegate {
   );
 
   /// Executes a DELETE request via [deleteHandler].
-  Future<ApiResult> delete(
+  Future<ApiResult> deleteItem(
     String url, {
     Map<String, String>? headers,
     Object? body,

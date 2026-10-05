@@ -657,20 +657,15 @@ void main() {
     });
 
     test(
-      'honor filters',
+      'assert filter is null',
       () async {
         const newObj = TestModel(id: null, msg: 'new');
         final sl = getSourceList(
           getRequestDelegate([detailResponseBody], canCreate: true),
         );
-        final writeResult = await sl.setItem(gwo(newObj, abcDetails));
-        final savedObj = writeResult.getOrRaise().item;
-        expect(savedObj, fred);
-
-        await hasNotCached(
-          sl,
-          [savedObj],
-          [details, abcDetails, localAbcDetails],
+        expect(
+          () => sl.setItem(gwo(newObj, abcDetails)),
+          throwsA(isA<AssertionError>()),
         );
       },
       timeout: const Timeout(Duration(milliseconds: 10)),
@@ -707,6 +702,33 @@ void main() {
       expect(
         () => sl.setItems(gwlo([newObj], refreshDetails)),
         throwsA(isA<StateError>()),
+      );
+    });
+  });
+
+  group('SourceList.deleteItem should', () {
+    test('assert filter is null', () async {
+      final sl = getSourceList(getRequestDelegate([]));
+      expect(
+        () => sl.deleteItem(gdo('123', abcDetails)),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+  });
+
+  group('SourceList.sendMessage should', () {
+    test('assert filter is null', () async {
+      final sl = getSourceList(getRequestDelegate([]));
+      expect(
+        () => sl.sendMessage(
+          SendMessageOperation<TestModel>(
+            operationId: 'op_msg',
+            message: 'hello',
+            details: abcDetails,
+            createdAt: DateTime.now(),
+          ),
+        ),
+        throwsA(isA<AssertionError>()),
       );
     });
   });
