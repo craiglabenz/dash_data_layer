@@ -114,6 +114,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(gcf.FieldPath.documentId);
     registerFallbackValue(gcf.WhereFilter.equal);
+    registerFallbackValue(MockDocumentSnapshot());
   });
 
   group('FirestoreAdminSource', () {
@@ -330,6 +331,162 @@ void main() {
           () => source.getItems(operation),
           throwsUnsupportedError,
         );
+      });
+
+      group('pagination', () {
+        test('limits results by pageSize on first page without offset',
+            () async {
+          final mockLimitedQuery = MockQuery();
+          final mockSnapshot = MockQuerySnapshot();
+          final mockDocSnap1 = MockQueryDocumentSnapshot();
+          final mockDocSnap2 = MockQueryDocumentSnapshot();
+
+          when(() => mockCollection.limit(2)).thenReturn(mockLimitedQuery);
+          when(mockLimitedQuery.get).thenAnswer((_) async => mockSnapshot);
+          when(
+            () => mockSnapshot.docs,
+          ).thenReturn([mockDocSnap1, mockDocSnap2]);
+
+          when(() => mockDocSnap1.id).thenReturn('doc1');
+          when(mockDocSnap1.data).thenReturn({'name': 'Item 1'});
+          when(() => mockDocSnap2.id).thenReturn('doc2');
+          when(mockDocSnap2.data).thenReturn({'name': 'Item 2'});
+
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_page1',
+            details: RequestDetails.read(
+              pagination: Pagination.page(1, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 2);
+          expect(
+            success.items.map((i) => i.name).toList(),
+            ['Item 1', 'Item 2'],
+          );
+
+          verify(() => mockCollection.limit(2)).called(1);
+          verifyNever(() => mockCollection.offset(any()));
+        });
+
+        test('applies offset and limit for subsequent pages', () async {
+          final mockOffsetQuery = MockQuery();
+          final mockLimitedQuery = MockQuery();
+          final mockSnapshot = MockQuerySnapshot();
+          final mockDocSnap3 = MockQueryDocumentSnapshot();
+          final mockDocSnap4 = MockQueryDocumentSnapshot();
+
+          when(() => mockCollection.offset(2)).thenReturn(mockOffsetQuery);
+          when(() => mockOffsetQuery.limit(2)).thenReturn(mockLimitedQuery);
+          when(mockLimitedQuery.get).thenAnswer((_) async => mockSnapshot);
+          when(
+            () => mockSnapshot.docs,
+          ).thenReturn([mockDocSnap3, mockDocSnap4]);
+
+          when(() => mockDocSnap3.id).thenReturn('doc3');
+          when(mockDocSnap3.data).thenReturn({'name': 'Item 3'});
+          when(() => mockDocSnap4.id).thenReturn('doc4');
+          when(mockDocSnap4.data).thenReturn({'name': 'Item 4'});
+
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_page2',
+            details: RequestDetails.read(
+              pagination: Pagination.page(2, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 2);
+          expect(
+            success.items.map((i) => i.name).toList(),
+            ['Item 3', 'Item 4'],
+          );
+
+          verify(() => mockCollection.offset(2)).called(1);
+          verify(() => mockOffsetQuery.limit(2)).called(1);
+        });
+
+        test('applies cursor-based pagination', () async {
+          final mockDocRef = MockDocumentReference();
+          final mockDocSnap = MockDocumentSnapshot();
+          final mockCursorQuery = MockQuery();
+          final mockLimitedQuery = MockQuery();
+          final mockSnapshot = MockQuerySnapshot();
+          final mockDocSnap3 = MockQueryDocumentSnapshot();
+
+          when(() => mockCollection.doc('doc2')).thenReturn(mockDocRef);
+          when(mockDocRef.get).thenAnswer((_) async => mockDocSnap);
+          when(
+            () => mockCollection.startAfterDocument(mockDocSnap),
+          ).thenReturn(mockCursorQuery);
+          when(() => mockCursorQuery.limit(2)).thenReturn(mockLimitedQuery);
+          when(mockLimitedQuery.get).thenAnswer((_) async => mockSnapshot);
+          when(() => mockSnapshot.docs).thenReturn([mockDocSnap3]);
+
+          when(() => mockDocSnap3.id).thenReturn('doc3');
+          when(mockDocSnap3.data).thenReturn({'name': 'Item 3'});
+
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_cursor',
+            details: RequestDetails.read(
+              pagination: Pagination.cursor('doc2', pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 1);
+          expect(success.items.single.name, 'Item 3');
+
+          verify(() => mockCollection.doc('doc2')).called(1);
+          verify(mockDocRef.get).called(1);
+          verify(
+            () => mockCollection.startAfterDocument(mockDocSnap),
+          ).called(1);
+          verify(() => mockCursorQuery.limit(2)).called(1);
+        });
+
+        test('applies both filter and pagination', () async {
+          final mockFilterQuery = MockQuery();
+          final mockLimitedQuery = MockQuery();
+          final mockSnapshot = MockQuerySnapshot();
+          final mockDocSnap = MockQueryDocumentSnapshot();
+
+          final filter = TestAdminFilter((q) => mockFilterQuery);
+
+          when(() => mockFilterQuery.limit(2)).thenReturn(mockLimitedQuery);
+          when(mockLimitedQuery.get).thenAnswer((_) async => mockSnapshot);
+          when(() => mockSnapshot.docs).thenReturn([mockDocSnap]);
+
+          when(() => mockDocSnap.id).thenReturn('doc1');
+          when(mockDocSnap.data).thenReturn({'name': 'Apple'});
+
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_filter_page',
+            details: RequestDetails.read(
+              filter: filter,
+              pagination: Pagination.page(1, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 1);
+          expect(success.items.single.name, 'Apple');
+
+          verify(() => mockFilterQuery.limit(2)).called(1);
+        });
       });
     });
 

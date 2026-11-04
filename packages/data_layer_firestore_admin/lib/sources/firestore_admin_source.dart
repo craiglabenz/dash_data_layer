@@ -123,7 +123,7 @@ class FirestoreAdminSource<T> extends Source<T> with WatchableSource<T> {
   Future<ReadListResult<T>> getItems(ReadListOperation<T> operation) =>
       _guarded(() => _getItems(operation), operation);
 
-  Future<ReadListResult<T>> _getItems(ReadListOperation<T> operation) {
+  Future<ReadListResult<T>> _getItems(ReadListOperation<T> operation) async {
     Query<DocumentData> query = collection;
     if (operation.details.filter != null) {
       if (operation.details.filter is! FirestoreAdminFilter) {
@@ -133,20 +133,39 @@ class FirestoreAdminSource<T> extends Source<T> with WatchableSource<T> {
       }
       query = (operation.details.filter! as FirestoreAdminFilter).apply(query);
     }
-    return query.get().then((snapshot) {
-      return ReadListResult<T>.fromList(
-        snapshot.docs
-            .map(
-              (doc) => bindings.fromJson(
-                cleanData(doc.data())..addAll({'id': doc.id}),
-              ),
-            )
-            .toList(),
-        operation.details,
-        {},
-        bindings.getId,
-      );
-    });
+
+    final pagination = operation.details.pagination;
+    if (pagination != null) {
+      final cursor = pagination.cursor;
+      final pageSize = pagination.pageSize;
+      final page = pagination.page;
+      if (cursor != null) {
+        final cursorDoc = await collection.doc(cursor).get();
+        query = query.startAfterDocument(cursorDoc);
+      } else if (page != null && page > 1 && pageSize != null) {
+        final offset = (page - 1) * pageSize;
+        if (offset > 0) {
+          query = query.offset(offset);
+        }
+      }
+      if (pageSize != null) {
+        query = query.limit(pageSize);
+      }
+    }
+
+    final snapshot = await query.get();
+    return ReadListResult<T>.fromList(
+      snapshot.docs
+          .map(
+            (doc) => bindings.fromJson(
+              cleanData(doc.data())..addAll({'id': doc.id}),
+            ),
+          )
+          .toList(),
+      operation.details,
+      {},
+      bindings.getId,
+    );
   }
 
   @override
