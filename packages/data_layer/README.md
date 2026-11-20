@@ -860,3 +860,51 @@ final source = ProxySource<User>(
 ### Why / when to use a ProxySource
 
 Sufficiently consistent REST APIs can be highly automated by a single `RestSource`. Conversely, APIs which preserve end-to-end type safety, like Serverpod, cannot be implemented as a single remote source for all data types. For APIs like Serverpod, reach for a ProxySource.
+
+### ProxySource / Serverpod example
+
+To use Data Layer with Serverpod, you need to implement a ProxySource for each model and each endpoint. The code below demonstrates doing this for one endpoint and one model, and assumes a Serverpod endpoint of the following signature:
+
+```dart
+Future<MyModel?> getModelById(Session session, String id);
+```
+
+This is admittedly somewhat tedious, but the value in Data Layer does not come from making it easier to talk to Serverpod; it comes from having automatic, deterministic caching (and by extension, retry logic) across all of your sources. Thus, attaching a `LocalMemorySource` on top of your Serverpod-friendly `ProxySource` is recommended.
+
+```dart
+class MyModelRepository extends Repository<MyModel> {
+  MyModelRepository() : super(
+    SourceList<MyModel>(
+      bindings: MyModel.bindings,
+      sources: [
+        LocalMemorySource<MyModel>(...),
+        ProxySource<MyModel>(
+          bindings: MyModel.bindings,
+          getByIdHandler: (WriteOperation<MyModel> op) async {
+            // Load your Serverpod `Client` by hook or by crook.
+            final serverpodClient = GetIt.I<Client>();
+
+            // Call your Serverpod endpoint, including catching exceptions.
+            try {
+              final obj = await serverpodClient.endpoints.getModelById(
+                op.itemId,
+              );
+              // `obj` may be null, which still fits with a `ReadSuccess`.
+              return ReadSuccess<MyModel>(obj, details: op.details);
+            } on Exception catch (e) {
+              // Return a ReadFailure.
+              return ReadFailure<MyModel>(
+                // Consider interrogating the error to determine the correct
+                // `FailureReason` instead of potentially confusing yourself by
+                // always returning `serverError`.
+                FailureReason.serverError,
+                'Failed to load MyModel with Id ${op.itemId}.',
+              );
+            }
+          },
+        ),
+      ],
+    ),
+  );
+}
+```
