@@ -1,9 +1,7 @@
 import 'package:data_layer/data_layer.dart' hide Source;
 import 'package:data_layer_firestore_admin/sources/firestore_admin_filters.dart';
 import 'package:data_layer_firestore_admin/sources/firestore_admin_source.dart';
-import 'package:google_cloud_firestore/google_cloud_firestore.dart'
-    as gcf
-    hide Filter;
+import 'package:google_cloud_firestore/google_cloud_firestore.dart' as gcf;
 import 'package:google_cloud_firestore/src/firestore.dart' as gcf_internal;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -98,6 +96,25 @@ class TestAdminFilter extends Filter with FirestoreAdminFilter {
   Json toJson() => {};
 }
 
+// Concrete FirestoreAdminFilter using toFirestoreFilter() for testing OR/AND
+class TestAdminPredicateFilter extends Filter with FirestoreAdminFilter {
+  const TestAdminPredicateFilter(this.predicate);
+
+  final gcf.Filter predicate;
+
+  @override
+  gcf.Filter toFirestoreFilter() => predicate;
+
+  @override
+  String get cacheKey => 'test-admin-predicate-filter';
+
+  @override
+  Map<String, String> toParams() => {};
+
+  @override
+  Json toJson() => {};
+}
+
 // Unknown Filter for testing unsupported filters
 class UnknownFilter extends Filter {
   @override
@@ -115,6 +132,9 @@ void main() {
     registerFallbackValue(gcf.FieldPath.documentId);
     registerFallbackValue(gcf.WhereFilter.equal);
     registerFallbackValue(MockDocumentSnapshot());
+    registerFallbackValue(
+      gcf.Filter.where('fallback', gcf.WhereFilter.equal, 'value'),
+    );
   });
 
   group('FirestoreAdminSource', () {
@@ -487,6 +507,178 @@ void main() {
 
           verify(() => mockFilterQuery.limit(2)).called(1);
         });
+      });
+
+      group('ComboFilter', () {
+        test('applies ComboFilter with BooleanLogic.and', () async {
+          final mockQuery1 = MockQuery();
+          final mockQuery2 = MockQuery();
+          final mockSnapshot = MockQuerySnapshot();
+          final mockDocSnap = MockQueryDocumentSnapshot();
+
+          when(mockQuery2.get).thenAnswer((_) async => mockSnapshot);
+          when(() => mockSnapshot.docs).thenReturn([mockDocSnap]);
+          when(() => mockDocSnap.id).thenReturn('doc1');
+          when(mockDocSnap.data).thenReturn({'name': 'Apple'});
+
+          final filter = ComboFilter(
+            [
+              TestAdminFilter((q) {
+                expect(q, mockCollection);
+                return mockQuery1;
+              }),
+              TestAdminFilter((q) {
+                expect(q, mockQuery1);
+                return mockQuery2;
+              }),
+            ],
+            BooleanLogic.and,
+          );
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_combo_and',
+            details: RequestDetails(filter: filter),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 1);
+          expect(success.items.single.name, 'Apple');
+        });
+
+        test('applies ComboFilter with BooleanLogic.or', () async {
+          final mockOrQuery = MockQuery();
+          final mockSnapshot = MockQuerySnapshot();
+          final mockDocSnap = MockQueryDocumentSnapshot();
+
+          when(
+            () => mockCollection.whereFilter(any()),
+          ).thenReturn(mockOrQuery);
+          when(mockOrQuery.get).thenAnswer((_) async => mockSnapshot);
+          when(() => mockSnapshot.docs).thenReturn([mockDocSnap]);
+          when(() => mockDocSnap.id).thenReturn('doc1');
+          when(mockDocSnap.data).thenReturn({'name': 'Apple'});
+
+          final filter = ComboFilter(
+            [
+              TestAdminPredicateFilter(
+                gcf.Filter.where('name', gcf.WhereFilter.equal, 'Apple'),
+              ),
+              TestAdminPredicateFilter(
+                gcf.Filter.where('type', gcf.WhereFilter.equal, 'vegetable'),
+              ),
+            ],
+            BooleanLogic.or,
+          );
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_combo_or',
+            details: RequestDetails(filter: filter),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 1);
+          expect(success.items.single.name, 'Apple');
+          verify(() => mockCollection.whereFilter(any())).called(1);
+        });
+
+        test('applies nested ComboFilter with mixed AND/OR logic', () async {
+          final mockOrQuery = MockQuery();
+          final mockSnapshot = MockQuerySnapshot();
+          final mockDocSnap = MockQueryDocumentSnapshot();
+
+          when(
+            () => mockCollection.whereFilter(any()),
+          ).thenReturn(mockOrQuery);
+          when(mockOrQuery.get).thenAnswer((_) async => mockSnapshot);
+          when(() => mockSnapshot.docs).thenReturn([mockDocSnap]);
+          when(() => mockDocSnap.id).thenReturn('doc1');
+          when(mockDocSnap.data).thenReturn({'name': 'Apple'});
+
+          final filter = ComboFilter(
+            [
+              ComboFilter(
+                [
+                  TestAdminPredicateFilter(
+                    gcf.Filter.where('name', gcf.WhereFilter.equal, 'Apple'),
+                  ),
+                  TestAdminPredicateFilter(
+                    gcf.Filter.where('type', gcf.WhereFilter.equal, 'fruit'),
+                  ),
+                ],
+                BooleanLogic.and,
+              ),
+              TestAdminPredicateFilter(
+                gcf.Filter.where('name', gcf.WhereFilter.equal, 'Carrot'),
+              ),
+            ],
+            BooleanLogic.or,
+          );
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_combo_nested',
+            details: RequestDetails(filter: filter),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 1);
+          verify(() => mockCollection.whereFilter(any())).called(1);
+        });
+
+        test(
+          'throws UnsupportedError when BooleanLogic.or child lacks '
+          'toFirestoreFilter',
+          () async {
+            final filter = ComboFilter(
+              [
+                TestAdminFilter((q) => q),
+                TestAdminPredicateFilter(
+                  gcf.Filter.where('name', gcf.WhereFilter.equal, 'Banana'),
+                ),
+              ],
+              BooleanLogic.or,
+            );
+            final operation = ReadListOperation<TestModel>(
+              operationId: 'op_combo_or_unsupported',
+              details: RequestDetails(filter: filter),
+              createdAt: DateTime.now(),
+            );
+
+            expect(
+              () => source.getItems(operation),
+              throwsUnsupportedError,
+            );
+          },
+        );
+
+        test(
+          'throws UnsupportedError when ComboFilter contains '
+          'non-FirestoreAdminFilter',
+          () async {
+            final filter = ComboFilter(
+              [
+                TestAdminFilter((q) => q),
+                UnknownFilter(),
+              ],
+              BooleanLogic.and,
+            );
+            final operation = ReadListOperation<TestModel>(
+              operationId: 'op_combo_unknown',
+              details: RequestDetails(filter: filter),
+              createdAt: DateTime.now(),
+            );
+
+            expect(
+              () => source.getItems(operation),
+              throwsUnsupportedError,
+            );
+          },
+        );
       });
     });
 

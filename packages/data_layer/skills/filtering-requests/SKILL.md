@@ -48,6 +48,60 @@ class AuthoredByFilter extends Filter {
 }
 ```
 
+### Combining filters with `ComboFilter`
+
+Multiple filters can be combined—and nested—using `ComboFilter` with `BooleanLogic.and` or `BooleanLogic.or`:
+
+```dart
+final details = RequestDetails(
+  filter: ComboFilter(
+    [
+      ActiveUsersFilter(),
+      AdminUsersFilter(),
+    ],
+    BooleanLogic.and,
+  ),
+);
+```
+
+When using `FirestoreSource` or `FirestoreAdminSource`:
+- **`BooleanLogic.and`**: Works with any `FirestoreFilter` / `FirestoreAdminFilter` (whether it overrides `apply()` or `toFirestoreFilter()`).
+- **`BooleanLogic.or`** (and nested `AND` inside `OR`): Requires child filters to override `toFirestoreFilter()` returning a `cloud_firestore.Filter` (or `google_cloud_firestore.Filter`). Filters that only implement `toFirestoreFilter()` automatically inherit `apply()` as well, so they work in standalone, `AND`, and `OR` queries.
+
+```dart
+import 'package:cloud_firestore/cloud_firestore.dart' as cf show Filter;
+import 'package:data_layer/data_layer.dart';
+import 'package:data_layer_firestore/data_layer_firestore.dart';
+
+class RoleFilter extends FirestoreFilter {
+  const RoleFilter(this.role);
+
+  final String role;
+
+  @override
+  cf.Filter toFirestoreFilter() => cf.Filter('role', isEqualTo: role);
+
+  @override
+  CacheKey get cacheKey => 'role-$role';
+
+  @override
+  Json toJson() => {'role': role};
+
+  @override
+  Params toParams() => {'role': role};
+}
+
+final orDetails = RequestDetails(
+  filter: ComboFilter(
+    [
+      const RoleFilter('admin'),
+      const RoleFilter('moderator'),
+    ],
+    BooleanLogic.or,
+  ),
+);
+```
+
 ### When to use filters
 
 Filters, like pagination and the `RequestType.allLocal` value, are only valid and allowed when calling `getItems`. You should also avoid using filters and `getItems` to load a specific set of known Ids. Instead, call `getById` or `getByIds`, which populate a `missingIds` field to clearly indicate when certain requested data could not be found.
