@@ -1,7 +1,7 @@
 name: data_layer_firestore_admin
 description: Provides Firestore Admin (google_cloud_firestore) bindings for pkg:data_layer.
 repository: https://github.com/craiglabenz/dash_data_layer
-version: 0.0.3
+version: 0.0.4
 
 environment:
   sdk: ^3.10.0

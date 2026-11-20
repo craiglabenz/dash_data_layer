@@ -1,0 +1,67 @@
+name: data_layer_firestore
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/data_layer_firestore/**'
+      - 'packages/data_layer/**'
+      - '.github/workflows/data_layer_firestore.yaml'
+      - '!**/*.md'
+      - '!**/LICENSE'
+  pull_request:
+    paths:
+      - 'packages/data_layer_firestore/**'
+      - 'packages/data_layer/**'
+      - '.github/workflows/data_layer_firestore.yaml'
+      - '!**/*.md'
+      - '!**/LICENSE'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test:
+    name: Test data_layer_firestore
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/data_layer_firestore
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-data_layer_firestore-${{ hashFiles('packages/data_layer_firestore/pubspec.yaml', 'packages/data_layer/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-data_layer_firestore-
+
+      # Test against the local checkout of data_layer instead of the published version on pub.dev.
+      - name: Override local data_layer dependency
+        run: |
+          cat <<'EOF' > pubspec_overrides.yaml
+          dependency_overrides:
+            data_layer:
+              path: ../data_layer
+          EOF
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: flutter test

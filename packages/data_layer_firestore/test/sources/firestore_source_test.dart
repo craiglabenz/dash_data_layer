@@ -174,6 +174,136 @@ void main() {
           throwsUnsupportedError,
         );
       });
+
+      group('pagination', () {
+        test('limits results by pageSize on first page', () async {
+          await collection.add({'name': 'Item 1'});
+          await collection.add({'name': 'Item 2'});
+          await collection.add({'name': 'Item 3'});
+          await collection.add({'name': 'Item 4'});
+          await collection.add({'name': 'Item 5'});
+
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_page1',
+            details: RequestDetails.read(
+              pagination: Pagination.page(1, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 2);
+          expect(
+            success.items.map((i) => i.name).toList(),
+            ['Item 1', 'Item 2'],
+          );
+        });
+
+        test('skips items on subsequent pages', () async {
+          await collection.add({'name': 'Item 1'});
+          await collection.add({'name': 'Item 2'});
+          await collection.add({'name': 'Item 3'});
+          await collection.add({'name': 'Item 4'});
+          await collection.add({'name': 'Item 5'});
+
+          final opPage2 = ReadListOperation<TestModel>(
+            operationId: 'op_page2',
+            details: RequestDetails.read(
+              pagination: Pagination.page(2, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result2 = await source.getItems(opPage2);
+          final success2 = result2 as ReadListSuccess<TestModel>;
+          expect(success2.items.length, 2);
+          expect(
+            success2.items.map((i) => i.name).toList(),
+            ['Item 3', 'Item 4'],
+          );
+
+          final opPage3 = ReadListOperation<TestModel>(
+            operationId: 'op_page3',
+            details: RequestDetails.read(
+              pagination: Pagination.page(3, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result3 = await source.getItems(opPage3);
+          final success3 = result3 as ReadListSuccess<TestModel>;
+          expect(success3.items.length, 1);
+          expect(success3.items.map((i) => i.name).toList(), ['Item 5']);
+
+          final opPage4 = ReadListOperation<TestModel>(
+            operationId: 'op_page4',
+            details: RequestDetails.read(
+              pagination: Pagination.page(4, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result4 = await source.getItems(opPage4);
+          final success4 = result4 as ReadListSuccess<TestModel>;
+          expect(success4.items, isEmpty);
+        });
+
+        test('applies cursor-based pagination', () async {
+          await collection.add({'name': 'Item 1'});
+          final doc2 = await collection.add({'name': 'Item 2'});
+          await collection.add({'name': 'Item 3'});
+          await collection.add({'name': 'Item 4'});
+          await collection.add({'name': 'Item 5'});
+
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_cursor',
+            details: RequestDetails.read(
+              pagination: Pagination.cursor(doc2.id, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 2);
+          expect(
+            success.items.map((i) => i.name).toList(),
+            ['Item 3', 'Item 4'],
+          );
+        });
+
+        test('applies both filter and pagination', () async {
+          await collection.add({'name': 'Apple', 'type': 'fruit'});
+          await collection.add({'name': 'Banana', 'type': 'fruit'});
+          await collection.add({'name': 'Carrot', 'type': 'vegetable'});
+          await collection.add({'name': 'Date', 'type': 'fruit'});
+
+          final filter = TestFilter(
+            (query) => query.where('type', isEqualTo: 'fruit'),
+          );
+
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_filter_page',
+            details: RequestDetails.read(
+              filter: filter,
+              pagination: Pagination.page(1, pageSize: 2),
+            ),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 2);
+          expect(
+            success.items.map((i) => i.name).toList(),
+            ['Apple', 'Banana'],
+          );
+        });
+      });
     });
 
     group('setItem', () {

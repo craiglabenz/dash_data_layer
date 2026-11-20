@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.4
+
+- Honors `RequestDetails` pagination (page/offset, limit, and cursor) in `getItems`.
+
 ## 0.0.3
 
 - Matches pkg:data_layer version 0.0.9 by renaming `delete` to `deleteItem` and by adding `deleteItems`

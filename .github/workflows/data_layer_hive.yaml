@@ -1,0 +1,66 @@
+name: data_layer_hive
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/data_layer_hive/**'
+      - 'packages/data_layer/**'
+      - '.github/workflows/data_layer_hive.yaml'
+      - '!**/*.md'
+      - '!**/LICENSE'
+  pull_request:
+    paths:
+      - 'packages/data_layer_hive/**'
+      - 'packages/data_layer/**'
+      - '.github/workflows/data_layer_hive.yaml'
+      - '!**/*.md'
+      - '!**/LICENSE'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test:
+    name: Test data_layer_hive
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/data_layer_hive
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-dart-pub-data_layer_hive-${{ hashFiles('packages/data_layer_hive/pubspec.yaml', 'packages/data_layer/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-dart-pub-data_layer_hive-
+
+      # Test against the local checkout of data_layer instead of the published version on pub.dev.
+      - name: Override local data_layer dependency
+        run: |
+          cat <<'EOF' > pubspec_overrides.yaml
+          dependency_overrides:
+            data_layer:
+              path: ../data_layer
+          EOF
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Run tests
+        run: dart test

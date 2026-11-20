@@ -36,7 +36,7 @@ enum BooleanLogic {
 /// {@template ComboFilter}
 /// Specialized filter meant to combine multiple children filters.
 /// {@endtemplate}
-class ComboFilter extends Filter with EquatableMixin {
+class ComboFilter extends Filter with Equatable {
   /// {@macro ComboFilter}
   const ComboFilter(this.children, this.logic);
 
