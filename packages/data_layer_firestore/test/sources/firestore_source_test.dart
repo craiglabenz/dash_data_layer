@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' as cf show Filter;
 import 'package:cloud_firestore/cloud_firestore.dart' hide Filter;
 import 'package:data_layer/data_layer.dart' hide Source;
 import 'package:data_layer_firestore/sources/firestore_filters.dart';
@@ -18,6 +19,25 @@ class TestFilter extends FirestoreFilter {
 
   @override
   String get cacheKey => 'test-filter';
+
+  @override
+  Map<String, String> toParams() => {};
+
+  @override
+  Json toJson() => {};
+}
+
+// Concrete FirestoreFilter using toFirestoreFilter() for testing OR/AND combos
+class TestPredicateFilter extends FirestoreFilter {
+  const TestPredicateFilter(this.predicate);
+
+  final cf.Filter predicate;
+
+  @override
+  cf.Filter toFirestoreFilter() => predicate;
+
+  @override
+  String get cacheKey => 'test-predicate-filter';
 
   @override
   Map<String, String> toParams() => {};
@@ -304,6 +324,143 @@ void main() {
           );
         });
       });
+
+      group('ComboFilter', () {
+        test('applies ComboFilter with BooleanLogic.and', () async {
+          await collection.add({'name': 'Apple', 'type': 'fruit'});
+          await collection.add({'name': 'Banana', 'type': 'fruit'});
+          await collection.add({'name': 'Apple', 'type': 'pie'});
+
+          final filter = ComboFilter(
+            [
+              TestFilter((q) => q.where('name', isEqualTo: 'Apple')),
+              TestFilter((q) => q.where('type', isEqualTo: 'fruit')),
+            ],
+            BooleanLogic.and,
+          );
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_combo_and',
+            details: RequestDetails(filter: filter),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 1);
+          expect(success.items.single.name, 'Apple');
+        });
+
+        test('applies ComboFilter with BooleanLogic.or', () async {
+          await collection.add({'name': 'Apple', 'type': 'fruit'});
+          await collection.add({'name': 'Banana', 'type': 'fruit'});
+          await collection.add({'name': 'Carrot', 'type': 'vegetable'});
+
+          final filter = ComboFilter(
+            [
+              TestPredicateFilter(cf.Filter('name', isEqualTo: 'Apple')),
+              TestPredicateFilter(cf.Filter('type', isEqualTo: 'vegetable')),
+            ],
+            BooleanLogic.or,
+          );
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_combo_or',
+            details: RequestDetails(filter: filter),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(
+            success.items.map((i) => i.name).toList(),
+            containsAll(['Apple', 'Carrot']),
+          );
+          expect(success.items.length, 2);
+        });
+
+        test('applies nested ComboFilter with mixed AND/OR logic', () async {
+          await collection.add({'name': 'Apple', 'type': 'fruit'});
+          await collection.add({'name': 'Apple', 'type': 'pie'});
+          await collection.add({'name': 'Carrot', 'type': 'vegetable'});
+
+          final filter = ComboFilter(
+            [
+              ComboFilter(
+                [
+                  TestPredicateFilter(cf.Filter('name', isEqualTo: 'Apple')),
+                  TestPredicateFilter(cf.Filter('type', isEqualTo: 'fruit')),
+                ],
+                BooleanLogic.and,
+              ),
+              TestPredicateFilter(cf.Filter('name', isEqualTo: 'Carrot')),
+            ],
+            BooleanLogic.or,
+          );
+          final operation = ReadListOperation<TestModel>(
+            operationId: 'op_combo_nested',
+            details: RequestDetails(filter: filter),
+            createdAt: DateTime.now(),
+          );
+
+          final result = await source.getItems(operation);
+
+          final success = result as ReadListSuccess<TestModel>;
+          expect(success.items.length, 2);
+          expect(
+            success.items.map((i) => i.name).toList(),
+            containsAll(['Apple', 'Carrot']),
+          );
+        });
+
+        test(
+          'throws UnsupportedError when BooleanLogic.or child lacks '
+          'toFirestoreFilter',
+          () async {
+            final filter = ComboFilter(
+              [
+                TestFilter((q) => q.where('name', isEqualTo: 'Apple')),
+                TestPredicateFilter(cf.Filter('name', isEqualTo: 'Banana')),
+              ],
+              BooleanLogic.or,
+            );
+            final operation = ReadListOperation<TestModel>(
+              operationId: 'op_combo_or_unsupported',
+              details: RequestDetails(filter: filter),
+              createdAt: DateTime.now(),
+            );
+
+            expect(
+              () => source.getItems(operation),
+              throwsUnsupportedError,
+            );
+          },
+        );
+
+        test(
+          'throws UnsupportedError when ComboFilter contains '
+          'non-FirestoreFilter',
+          () async {
+            final filter = ComboFilter(
+              [
+                TestFilter((q) => q.where('name', isEqualTo: 'Apple')),
+                UnknownFilter(),
+              ],
+              BooleanLogic.and,
+            );
+            final operation = ReadListOperation<TestModel>(
+              operationId: 'op_combo_unknown',
+              details: RequestDetails(filter: filter),
+              createdAt: DateTime.now(),
+            );
+
+            expect(
+              () => source.getItems(operation),
+              throwsUnsupportedError,
+            );
+          },
+        );
+      });
     });
 
     group('setItem', () {
@@ -409,6 +566,32 @@ void main() {
         final remaining = await collection.get();
         expect(remaining.docs.length, 1);
         expect(remaining.docs.first.id, doc2.id);
+      });
+
+      test('deletes matching documents when ComboFilter specified', () async {
+        await collection.add({'name': 'Delete A', 'type': 'A'});
+        await collection.add({'name': 'Delete B', 'type': 'B'});
+        final docC = await collection.add({'name': 'Keep C', 'type': 'C'});
+
+        final filter = ComboFilter(
+          [
+            TestPredicateFilter(cf.Filter('type', isEqualTo: 'A')),
+            TestPredicateFilter(cf.Filter('type', isEqualTo: 'B')),
+          ],
+          BooleanLogic.or,
+        );
+        final operation = DeleteListOperation<TestModel>(
+          operationId: 'delListCombo',
+          details: RequestDetails.delete(filter: filter),
+          createdAt: DateTime.now(),
+        );
+
+        final result = await source.deleteItems(operation);
+        expect(result, isA<DeleteSuccess<TestModel>>());
+
+        final remaining = await collection.get();
+        expect(remaining.docs.length, 1);
+        expect(remaining.docs.first.id, docC.id);
       });
     });
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart' hide Source;
+import 'package:cloud_firestore/cloud_firestore.dart' as cf show Filter;
+import 'package:cloud_firestore/cloud_firestore.dart' hide Filter, Source;
 import 'package:data_layer/data_layer.dart';
 import 'package:data_layer_firestore/sources/firestore_filters.dart';
 import 'package:logging/logging.dart';
@@ -132,12 +133,7 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
   Future<ReadListResult<T>> _getItems(ReadListOperation<T> operation) async {
     Query<Json> query = collection;
     if (operation.details.filter != null) {
-      if (operation.details.filter is! FirestoreFilter) {
-        throw UnsupportedError(
-          'Filter ${operation.details.filter.runtimeType} is not supported',
-        );
-      }
-      query = (operation.details.filter! as FirestoreFilter).apply(query);
+      query = _applyFilter(query, operation.details.filter!);
     }
 
     final pagination = operation.details.pagination;
@@ -264,12 +260,7 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
   Future<DeleteResult<T>> _deleteItems(DeleteListOperation<T> operation) async {
     Query<Json> query = collection;
     if (operation.details.filter != null) {
-      if (operation.details.filter is! FirestoreFilter) {
-        throw UnsupportedError(
-          'Filter ${operation.details.filter.runtimeType} is not supported',
-        );
-      }
-      query = (operation.details.filter! as FirestoreFilter).apply(query);
+      query = _applyFilter(query, operation.details.filter!);
     }
     final snapshot = await query.get();
     if (snapshot.docs.isNotEmpty) {
@@ -363,12 +354,7 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
   Stream<ReadListResult<T>> _watchList(WatchListOperation<T> operation) {
     Query<Json> query = collection;
     if (operation.details.filter != null) {
-      if (operation.details.filter is! FirestoreFilter) {
-        throw UnsupportedError(
-          'Filter ${operation.details.filter.runtimeType} is not supported',
-        );
-      }
-      query = (operation.details.filter! as FirestoreFilter).apply(query);
+      query = _applyFilter(query, operation.details.filter!);
     }
     return query.snapshots().map((snapshot) {
       return ReadListResult<T>.fromList(
@@ -384,6 +370,85 @@ class FirestoreSource<T> extends Source<T> with WatchableSource<T> {
         bindings.getId,
       );
     });
+  }
+
+  Query<Json> _applyFilter(Query<Json> query, Filter filter) {
+    if (filter is FirestoreFilter) {
+      return filter.apply(query);
+    }
+    if (filter is ComboFilter) {
+      if (filter.children.isEmpty) {
+        _log.warning(
+          'Empty ComboFilter passed to $collectionName; '
+          'query will not be filtered.',
+        );
+        return query;
+      }
+      switch (filter.logic) {
+        case BooleanLogic.and:
+          var result = query;
+          for (final child in filter.children) {
+            result = _applyFilter(result, child);
+          }
+          return result;
+        case BooleanLogic.or:
+          final cfFilter = _toCloudFirestoreFilter(filter);
+          return cfFilter == null ? query : query.where(cfFilter);
+      }
+    }
+    final message = 'Filter ${filter.runtimeType} is not supported';
+    _log.severe(message);
+    throw UnsupportedError(message);
+  }
+
+  cf.Filter? _toCloudFirestoreFilter(Filter filter) {
+    if (filter is FirestoreFilter) {
+      final cfFilter = filter.toFirestoreFilter();
+      if (cfFilter == null) {
+        final message =
+            'Filter ${filter.runtimeType} must implement toFirestoreFilter() '
+            'to be used with BooleanLogic.or.\n\n'
+            'Example:\n'
+            "  import 'package:cloud_firestore/cloud_firestore.dart' "
+            'as cf show Filter;\n\n'
+            '  class ${filter.runtimeType} extends FirestoreFilter {\n'
+            '    @override\n'
+            '    cf.Filter toFirestoreFilter() => '
+            "cf.Filter('field', isEqualTo: value);\n"
+            '  }';
+        _log.severe(message);
+        throw UnsupportedError(message);
+      }
+      return cfFilter;
+    }
+    if (filter is ComboFilter) {
+      final children = filter.children
+          .map(_toCloudFirestoreFilter)
+          .whereType<cf.Filter>()
+          .toList();
+      if (children.isEmpty) {
+        return null;
+      }
+      if (children.length == 1) {
+        return children.single;
+      }
+      if (children.length > 30) {
+        final message =
+            'Firestore ${filter.logic.name.toUpperCase()} filters support at '
+            'most 30 children, got ${children.length}';
+        _log.severe(message);
+        throw UnsupportedError(message);
+      }
+      return switch (filter.logic) {
+        BooleanLogic.and =>
+          Function.apply(cf.Filter.and, children) as cf.Filter,
+        BooleanLogic.or =>
+          Function.apply(cf.Filter.or, children) as cf.Filter,
+      };
+    }
+    final message = 'Filter ${filter.runtimeType} is not supported';
+    _log.severe(message);
+    throw UnsupportedError(message);
   }
 
   /// Converts Firebase [Timestamp] values into Dart [DateTime]s.

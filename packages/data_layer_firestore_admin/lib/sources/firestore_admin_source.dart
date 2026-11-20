@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:data_layer/data_layer.dart';
 import 'package:data_layer_firestore_admin/sources/firestore_admin_filters.dart';
 import 'package:google_cloud_firestore/google_cloud_firestore.dart'
+    as gcf
+    show Filter;
+import 'package:google_cloud_firestore/google_cloud_firestore.dart'
     hide Filter, WriteResult;
 import 'package:logging/logging.dart';
 
@@ -126,12 +129,7 @@ class FirestoreAdminSource<T> extends Source<T> with WatchableSource<T> {
   Future<ReadListResult<T>> _getItems(ReadListOperation<T> operation) async {
     Query<DocumentData> query = collection;
     if (operation.details.filter != null) {
-      if (operation.details.filter is! FirestoreAdminFilter) {
-        throw UnsupportedError(
-          'Filter ${operation.details.filter.runtimeType} is not supported',
-        );
-      }
-      query = (operation.details.filter! as FirestoreAdminFilter).apply(query);
+      query = _applyFilter(query, operation.details.filter!);
     }
 
     final pagination = operation.details.pagination;
@@ -249,12 +247,7 @@ class FirestoreAdminSource<T> extends Source<T> with WatchableSource<T> {
   Future<DeleteResult<T>> _deleteItems(DeleteListOperation<T> operation) async {
     Query<DocumentData> query = collection;
     if (operation.details.filter != null) {
-      if (operation.details.filter is! FirestoreAdminFilter) {
-        throw UnsupportedError(
-          'Filter ${operation.details.filter.runtimeType} is not supported',
-        );
-      }
-      query = (operation.details.filter! as FirestoreAdminFilter).apply(query);
+      query = _applyFilter(query, operation.details.filter!);
     }
     final snapshot = await query.get();
     if (snapshot.docs.isNotEmpty) {
@@ -267,6 +260,77 @@ class FirestoreAdminSource<T> extends Source<T> with WatchableSource<T> {
       }
     }
     return DeleteSuccess<T>(operation.details);
+  }
+
+  Query<DocumentData> _applyFilter(Query<DocumentData> query, Filter filter) {
+    if (filter is FirestoreAdminFilter) {
+      return filter.apply(query);
+    }
+    if (filter is ComboFilter) {
+      if (filter.children.isEmpty) {
+        _log.warning(
+          'Empty ComboFilter passed to $collectionName; '
+          'query will not be filtered.',
+        );
+        return query;
+      }
+      switch (filter.logic) {
+        case BooleanLogic.and:
+          var result = query;
+          for (final child in filter.children) {
+            result = _applyFilter(result, child);
+          }
+          return result;
+        case BooleanLogic.or:
+          final gcfFilter = _toGoogleCloudFirestoreFilter(filter);
+          return gcfFilter == null ? query : query.whereFilter(gcfFilter);
+      }
+    }
+    final message = 'Filter ${filter.runtimeType} is not supported';
+    _log.severe(message);
+    throw UnsupportedError(message);
+  }
+
+  gcf.Filter? _toGoogleCloudFirestoreFilter(Filter filter) {
+    if (filter is FirestoreAdminFilter) {
+      final gcfFilter = filter.toFirestoreFilter();
+      if (gcfFilter == null) {
+        final message =
+            'Filter ${filter.runtimeType} must implement toFirestoreFilter() '
+            'to be used with BooleanLogic.or.\n\n'
+            'Example:\n'
+            "  import 'package:google_cloud_firestore/google_cloud_firestore.dart'"
+            ' as gcf show Filter;\n\n'
+            '  class ${filter.runtimeType} extends Filter '
+            'with FirestoreAdminFilter {\n'
+            '    @override\n'
+            '    gcf.Filter toFirestoreFilter() => '
+            "gcf.Filter.where('field', WhereFilter.equal, value);\n"
+            '  }';
+        _log.severe(message);
+        throw UnsupportedError(message);
+      }
+      return gcfFilter;
+    }
+    if (filter is ComboFilter) {
+      final children = filter.children
+          .map(_toGoogleCloudFirestoreFilter)
+          .whereType<gcf.Filter>()
+          .toList();
+      if (children.isEmpty) {
+        return null;
+      }
+      if (children.length == 1) {
+        return children.single;
+      }
+      return switch (filter.logic) {
+        BooleanLogic.and => gcf.Filter.and(children),
+        BooleanLogic.or => gcf.Filter.or(children),
+      };
+    }
+    final message = 'Filter ${filter.runtimeType} is not supported';
+    _log.severe(message);
+    throw UnsupportedError(message);
   }
 
   /// Merges an arbitrary [Json] map into the document with [id].
