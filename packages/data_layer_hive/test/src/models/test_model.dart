@@ -51,7 +51,7 @@ class TestModel {
   );
 }
 
-class MsgStartsWithFilter extends Filter with EquatableMixin {
+class MsgStartsWithFilter extends Filter with Equatable {
   const MsgStartsWithFilter(this.value);
   final String value;
 

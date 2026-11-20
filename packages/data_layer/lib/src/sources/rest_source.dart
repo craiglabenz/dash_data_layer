@@ -201,11 +201,11 @@ class RestSource<T> extends Source<T> with MessageWriteMixin<T> {
     switch (byIds) {
       case ReadListFailure():
         for (final id in ids) {
-          loadedItems[id]!.complete(null);
+          loadedItems[id]!.complete();
         }
       case ReadListSuccess():
         for (final id in byIds.missingItemIds) {
-          loadedItems[id]!.complete(null);
+          loadedItems[id]!.complete();
         }
         for (final id in byIds.itemsMap.keys) {
           if (!loadedItems.containsKey(id)) {

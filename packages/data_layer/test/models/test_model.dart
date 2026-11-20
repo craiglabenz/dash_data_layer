@@ -52,7 +52,7 @@ class TestModel {
   );
 }
 
-class MsgStartsWithFilter extends Filter with EquatableMixin {
+class MsgStartsWithFilter extends Filter with Equatable {
   const MsgStartsWithFilter(this.value);
   final String value;
 
@@ -141,7 +141,7 @@ class FakeSourceList<T> extends SourceList<T> {
 ///
 /// Not the most performant class, as this re-serializes the model. Best used
 /// only for tests.
-class FieldEquals<T, Value> extends Filter with EquatableMixin {
+class FieldEquals<T, Value> extends Filter with Equatable {
   const FieldEquals(this.fieldName, this.value, this.getValue);
   final String fieldName;
   final Value? value;
